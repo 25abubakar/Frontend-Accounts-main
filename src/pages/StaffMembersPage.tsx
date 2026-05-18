@@ -8,8 +8,7 @@ import { personsApi, type PersonDto } from "../api/personsApi";
 import type { StaffDto } from "../types";
 
 import { StaffTable, PersonsTable } from "../components/staff/StaffTables";
-import { FireModal, TransferModal, DeletePersonModal, ViewPersonModal } from "../components/staff/StaffModals";
-import EditStaffPerson from "../components/staff/EditStaffPerson";
+import { FireModal, TransferModal, DeletePersonModal, ViewPersonModal, EditStaffModal, EditPersonModal } from "../components/staff/StaffModals";
 import Can from "../components/shared/Can";
 
 type MainTab = "staff" | "persons";
@@ -176,9 +175,8 @@ export default function StaffMembersPage() {
       </div>
 
       <AnimatePresence>
-        {/* 🌟 Mount the New Edit Component here */}
-        {editStaff && <EditStaffPerson data={editStaff} type="staff" onClose={() => setEditStaff(null)} onSaved={fetchStaff} />}
-        {editPerson && <EditStaffPerson data={editPerson} type="person" onClose={() => setEditPerson(null)} onSaved={fetchPersons} />}
+        {editStaff && <EditStaffModal staff={editStaff} onClose={() => setEditStaff(null)} onSaved={fetchStaff} />}
+        {editPerson && <EditPersonModal person={editPerson} onClose={() => setEditPerson(null)} onSaved={fetchPersons} />}
 
         {fireStaff && <FireModal staff={fireStaff} onClose={() => setFireStaff(null)} onFired={() => { fetchStaff(); fetchPersons(); }} />}
         {transferStaff && <TransferModal staff={transferStaff} onClose={() => setTransferStaff(null)} onTransferred={fetchStaff} />}
