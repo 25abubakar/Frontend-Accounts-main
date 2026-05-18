@@ -1,8 +1,18 @@
+/**
+ * src/utils/orgGroupTreeDesign.tsx
+ * Shared design utilities for the org-tree views:
+ *   - Animation variants
+ *   - Icon resolver
+ *   - Flag resolver (with smart country dictionary)
+ *   - Card style helpers
+ *
+ * Import from here — do NOT duplicate COUNTRY_MAP or helpers in page files.
+ */
 import { Globe2, Building2, MapPin, Users, Briefcase, Network } from "lucide-react";
 import { type Variants } from "framer-motion";
 
-// 🌟 Added the Smart Flag Dictionary here to fix the broken flags
-const COUNTRY_MAP: Record<string, string> = {
+/** Smart country-name → ISO-2 code dictionary. Import this instead of duplicating. */
+export const COUNTRY_MAP: Record<string, string> = {
   // North America
   "united states": "us", "usa": "us", "america": "us", "us": "us", "canada": "ca", "mexico": "mx",
   // Europe

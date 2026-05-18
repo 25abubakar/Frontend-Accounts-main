@@ -45,8 +45,11 @@ export default function RegisterPage() {
     try {
       setApiError(null);
 
+      // Build userName from firstName + lastName (matches backend RegisterDto.userName)
+      const userName = `${data.firstName.trim()} ${data.lastName.trim()}`;
+
       const payload: RegisterDto = {
-        email: data.email,
+        userName,                        // ← backend expects userName, not email
         password: data.password,
         confirmPassword: data.confirmPassword,
         role: data.role,

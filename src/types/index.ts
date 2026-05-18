@@ -156,3 +156,69 @@ export interface UpdateStaffDto {
 export interface TransferStaffDto {
   newVacancyId: string;
 }
+
+// ─────────────────────────────────────────────────────────
+// PERSONS
+// ─────────────────────────────────────────────────────────
+
+export interface Address {
+  addressLine: string | null;
+  country: string | null;
+  province: string | null;
+  district: string | null;
+  city: string | null;
+  postalCode: string | null;
+}
+
+// Re-exported here for convenience — canonical definition lives in personsApi.ts
+export interface PersonSummary {
+  personId: string;
+  loginId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  photoUrl: string | null;
+  gender: string | null;
+  dateOfBirth: string | null;
+  maritalStatus: string | null;
+  isHired: boolean;
+  registeredAt: string;
+  branchId: number | null;
+  branchName: string | null;
+  companyName: string | null;
+  countryName: string | null;
+  currentAddress: Address;
+  permanentAddress: Address;
+  sameAddress: boolean;
+}
+
+// ─────────────────────────────────────────────────────────
+// ACCESS / PERMISSIONS
+// ─────────────────────────────────────────────────────────
+
+export interface Feature {
+  featureKey: string;
+  featureName: string;
+  module: string;
+}
+
+export interface AccessGroup {
+  groupId: number;
+  groupName: string;
+  description: string | null;
+  features: string[];
+  staffCount: number;
+}
+
+export interface MatrixRow {
+  staffId: string;
+  fullName: string;
+  loginId: string;
+  jobTitle: string;
+  permissions: {
+    featureKey: string;
+    featureName: string;
+    module: string;
+    hasAccess: boolean;
+  }[];
+}

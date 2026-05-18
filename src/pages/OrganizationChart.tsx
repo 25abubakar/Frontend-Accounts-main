@@ -6,25 +6,9 @@ import {
 } from "lucide-react";
 import { orgTreeApi } from "../api/orgTreeApi";
 import { positionApi } from "../api/positionApi"; 
-import type { OrgFlatTreeNode, VacancyDto } from "../types"; 
-
-// 🌟 Smart Flag Dictionary for missing or 3-letter codes
-const COUNTRY_MAP: Record<string, string> = {
-  "united states": "us", "usa": "us", "america": "us", "canada": "ca", "mexico": "mx",
-  "united kingdom": "gb", "uk": "gb", "great britain": "gb", "england": "gb", "scotland": "gb",
-  "germany": "de", "france": "fr", "italy": "it", "spain": "es", "netherlands": "nl", 
-  "switzerland": "ch", "belgium": "be", "sweden": "se", "norway": "no", "denmark": "dk", 
-  "finland": "fi", "ireland": "ie", "portugal": "pt", "greece": "gr", "russia": "ru", "ukraine": "ua",
-  "saudi arabia": "sa", "ksa": "sa", "uae": "ae", "united arab emirates": "ae", "dubai": "ae", 
-  "qatar": "qa", "kuwait": "kw", "oman": "om", "bahrain": "bh", "egypt": "eg", "turkey": "tr",
-  "israel": "il", "iran": "ir", "iraq": "iq", "jordan": "jo", "lebanon": "lb",
-  "pakistan": "pk", "india": "in", "china": "cn", "japan": "jp", "south korea": "kr", "korea": "kr",
-  "indonesia": "id", "malaysia": "my", "singapore": "sg", "philippines": "ph", "thailand": "th", 
-  "vietnam": "vn", "bangladesh": "bd", "sri lanka": "lk", "nepal": "np", "afghanistan": "af",
-  "south africa": "za", "nigeria": "ng", "kenya": "ke", "ghana": "gh", "morocco": "ma", "algeria": "dz",
-  "australia": "au", "aus": "au", "new zealand": "nz",
-  "brazil": "br", "argentina": "ar", "colombia": "co", "chile": "cl", "peru": "pe"
-};
+import type { OrgFlatTreeNode, VacancyDto } from "../types";
+// Import shared COUNTRY_MAP — do NOT duplicate it here
+import { COUNTRY_MAP } from "../utils/orgGroupTreeDesign";
 
 interface OrgTreeNode extends OrgFlatTreeNode {
   children: OrgTreeNode[];

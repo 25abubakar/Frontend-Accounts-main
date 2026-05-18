@@ -3,6 +3,9 @@ import api from './axios';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
+// Tri-state permission value
+export type PermissionState = "ALLOW" | "DENY" | "INHERIT";
+
 export interface FeatureDto {
   featureKey: string;
   featureName: string;
@@ -28,26 +31,38 @@ export interface UpdateGroupFeaturesDto {
   featureKeys: string[];
 }
 
-export interface MatrixPermission {
-  featureKey: string;
-  featureName: string;
-  module: string;
-  hasAccess: boolean;
+// ── New matrix types (updated API shape) ──────────────────────────────────
+
+export interface MatrixStaffRow {
+  staffId: string | null;
+  personId: string;
+  fullName: string;
+  loginId: string;
+  jobTitle: string | null;
+  vacancyCode: string | null;
+  isHired: boolean;
+  permissions: { featureKey: string; hasAccess: boolean; state?: PermissionState }[];
 }
 
+export interface MatrixResponse {
+  deptId: number;
+  totalStaff: number;
+  features: FeatureDto[];
+  staff: MatrixStaffRow[];
+}
+
+// Bulk save body — tri-state
+export interface SaveMatrixDto {
+  items: { staffId: string; featureKey: string; hasAccess: boolean; state?: PermissionState }[];
+}
+
+// Legacy row type (kept for compat)
 export interface MatrixRow {
   staffId: string;
   fullName: string;
   loginId: string;
   jobTitle: string;
-  permissions: MatrixPermission[];
-}
-
-export interface SaveMatrixDto {
-  rows: {
-    staffId: string;
-    featureKeys: string[];
-  }[];
+  permissions: { featureKey: string; featureName: string; module: string; hasAccess: boolean }[];
 }
 
 export interface StaffGroupDto {
@@ -55,6 +70,32 @@ export interface StaffGroupDto {
   groupName: string;
   description: string | null;
   features: string[];
+}
+
+// Person in a department (new endpoint)
+export interface DeptPersonDto {
+  personId: string;
+  staffId: string | null;
+  fullName: string;
+  loginId: string;
+  email: string | null;
+  photoUrl: string | null;
+  isHired: boolean;
+  jobTitle: string | null;
+  vacancyCode: string | null;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function toArray<T>(d: unknown): T[] {
+  if (Array.isArray(d)) return d as T[];
+  if (d && typeof d === 'object') {
+    const obj = d as Record<string, unknown>;
+    if (Array.isArray(obj.$values)) return obj.$values as T[];
+    if (Array.isArray(obj.data))    return obj.data as T[];
+    if (Array.isArray(obj.items))   return obj.items as T[];
+    if (Array.isArray(obj.staff))   return obj.staff as T[];
+  }
+  return [];
 }
 
 // ── API ───────────────────────────────────────────────────────────────────
@@ -65,40 +106,45 @@ export const accessApi = {
 
   // GET /api/access/features
   getAllFeatures: async (): Promise<FeatureDto[]> => {
-    const response = await api.get<FeatureDto[]>('/api/access/features');
-    return response.data;
+    const { data } = await api.get('/api/access/features');
+    return toArray<FeatureDto>(data);
   },
 
   // GET /api/access/features/module/{module}
   getFeaturesByModule: async (module: string): Promise<FeatureDto[]> => {
-    const response = await api.get<FeatureDto[]>(`/api/access/features/module/${encodeURIComponent(module)}`);
-    return response.data;
+    const { data } = await api.get(`/api/access/features/module/${encodeURIComponent(module)}`);
+    return toArray<FeatureDto>(data);
   },
 
   // ── Groups ────────────────────────────────────────────────────────────
 
   // GET /api/access/groups
   getGroups: async (): Promise<AccessGroupDto[]> => {
-    const response = await api.get<AccessGroupDto[]>('/api/access/groups');
-    return response.data;
+    const { data } = await api.get('/api/access/groups');
+    const arr = toArray<AccessGroupDto>(data);
+    // Normalize each group's features array
+    return arr.map(g => ({
+      ...g,
+      features: toArray<string>(g.features as unknown),
+    }));
   },
 
   // POST /api/access/groups
-  createGroup: async (data: CreateGroupDto): Promise<AccessGroupDto> => {
-    const response = await api.post<AccessGroupDto>('/api/access/groups', data);
-    return response.data;
+  createGroup: async (payload: CreateGroupDto): Promise<AccessGroupDto> => {
+    const { data } = await api.post<AccessGroupDto>('/api/access/groups', payload);
+    return data;
   },
 
   // GET /api/access/groups/{id}
   getGroupById: async (id: number): Promise<AccessGroupDto> => {
-    const response = await api.get<AccessGroupDto>(`/api/access/groups/${id}`);
-    return response.data;
+    const { data } = await api.get<AccessGroupDto>(`/api/access/groups/${id}`);
+    return data;
   },
 
   // PUT /api/access/groups/{id}
-  updateGroup: async (id: number, data: CreateGroupDto): Promise<AccessGroupDto> => {
-    const response = await api.put<AccessGroupDto>(`/api/access/groups/${id}`, data);
-    return response.data;
+  updateGroup: async (id: number, payload: CreateGroupDto): Promise<AccessGroupDto> => {
+    const { data } = await api.put<AccessGroupDto>(`/api/access/groups/${id}`, payload);
+    return data;
   },
 
   // DELETE /api/access/groups/{id}
@@ -107,16 +153,16 @@ export const accessApi = {
   },
 
   // PUT /api/access/groups/{id}/features
-  updateGroupFeatures: async (id: number, data: UpdateGroupFeaturesDto): Promise<void> => {
-    await api.put(`/api/access/groups/${id}/features`, data);
+  updateGroupFeatures: async (id: number, payload: UpdateGroupFeaturesDto): Promise<void> => {
+    await api.put(`/api/access/groups/${id}/features`, payload);
   },
 
   // ── Staff ↔ Groups ────────────────────────────────────────────────────
 
   // GET /api/access/staff/{staffId}/groups
   getStaffGroups: async (staffId: string): Promise<StaffGroupDto[]> => {
-    const response = await api.get<StaffGroupDto[]>(`/api/access/staff/${staffId}/groups`);
-    return response.data;
+    const { data } = await api.get(`/api/access/staff/${staffId}/groups`);
+    return toArray<StaffGroupDto>(data);
   },
 
   // POST /api/access/staff/{staffId}/groups/{groupId}
@@ -130,22 +176,46 @@ export const accessApi = {
   },
 
   // GET /api/access/staff/{staffId}/permissions
-  getStaffPermissions: async (staffId: string): Promise<FeatureDto[]> => {
-    const response = await api.get<FeatureDto[]>(`/api/access/staff/${staffId}/permissions`);
-    return response.data;
+  // Returns array of featureKeys (strings) OR array of FeatureDto
+  getStaffPermissions: async (staffId: string): Promise<string[]> => {
+    const { data } = await api.get(`/api/access/staff/${staffId}/permissions`);
+    // Backend may return { staffId, permissions: [...] } or plain array
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const obj = data as Record<string, unknown>;
+      const perms = obj.permissions ?? obj.$values ?? obj.data;
+      return toArray<string>(perms);
+    }
+    return toArray<string>(data);
   },
 
-  // ── Department Matrix ─────────────────────────────────────────────────
+  // ── Department Matrix (NEW API shape) ─────────────────────────────────
 
   // GET /api/access/department/{deptId}/matrix
-  getDeptMatrix: async (deptId: string): Promise<MatrixRow[]> => {
-    const response = await api.get<MatrixRow[]>(`/api/access/department/${deptId}/matrix`);
-    return response.data;
+  getDeptMatrix: async (deptId: string): Promise<MatrixResponse> => {
+    const { data } = await api.get(`/api/access/department/${deptId}/matrix`);
+    // Normalize: backend may return the object directly or wrapped
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const obj = data as Record<string, unknown>;
+      return {
+        deptId:     (obj.deptId as number)     ?? 0,
+        totalStaff: (obj.totalStaff as number) ?? 0,
+        features:   toArray<FeatureDto>(obj.features),
+        staff:      toArray<MatrixStaffRow>(obj.staff),
+      };
+    }
+    // Fallback: old array shape — wrap it
+    return { deptId: 0, totalStaff: 0, features: [], staff: toArray<MatrixStaffRow>(data) };
   },
 
-  // POST /api/access/department/{deptId}/matrix
-  saveDeptMatrix: async (deptId: string, data: SaveMatrixDto): Promise<void> => {
-    await api.post(`/api/access/department/${deptId}/matrix`, data);
+  // GET /api/access/department/{deptId}/persons
+  getDeptPersons: async (deptId: string): Promise<DeptPersonDto[]> => {
+    const { data } = await api.get(`/api/access/department/${deptId}/persons`);
+    return toArray<DeptPersonDto>(data);
+  },
+
+  // POST /api/access/department/{deptId}/matrix  (bulk save)
+  saveDeptMatrix: async (deptId: string, payload: SaveMatrixDto): Promise<void> => {
+    await api.post(`/api/access/department/${deptId}/matrix`, payload);
   },
 
   // PUT /api/access/staff/{staffId}/feature/{featureKey}
@@ -155,9 +225,7 @@ export const accessApi = {
 
   // POST /api/access/staff/{staffId}/grant-all?deptId={deptId}
   grantAll: async (staffId: string, deptId: string): Promise<void> => {
-    await api.post(`/api/access/staff/${staffId}/grant-all`, null, {
-      params: { deptId },
-    });
+    await api.post(`/api/access/staff/${staffId}/grant-all`, null, { params: { deptId } });
   },
 
   // DELETE /api/access/staff/{staffId}/revoke-all

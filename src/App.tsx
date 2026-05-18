@@ -1,116 +1,111 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 
-// Layouts & Protection
-import ProtectedRoute from "./components/shared/ProtectedRoute";
+import ProtectedRoute  from "./components/shared/ProtectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
 
-// Auth Pages
-import LoginPage from "./features/auth/LoginPage";
-import RegisterPage from "./features/auth/RegisterPage";
+// ── Eager (small, always needed) ─────────────────────────────────────────
+import LoginPage        from "./features/auth/LoginPage";
+import AccessDeniedPage from "./pages/AccessDeniedPage";
+import PlaceholderPage  from "./pages/PlaceholderPage";
 
-// Core Pages
-import DashboardPage from "./pages/DashboardPage";
-import OrgTreeTable from "./pages/OrgTreeTable";
-import OrganizationChart from "./pages/OrganizationChart";
-import StaffMembersPage from "./pages/StaffMembersPage";
-import PartnerPortalsPage from "./pages/PartnerPortalsPage";
-import PositionsPage from "./pages/PositionsPage";
-import ReportsPage from "./pages/ReportsPage";
+// ── Lazy (code-split — loaded only when navigated to) ────────────────────
+const RegisterPage        = lazy(() => import("./features/auth/RegisterPage"));
+const DashboardPage       = lazy(() => import("./pages/DashboardPage"));
+const OrgTreeTable        = lazy(() => import("./pages/OrgTreeTable"));
+const OrganizationChart   = lazy(() => import("./pages/OrganizationChart"));
+const PartnerPortalsPage  = lazy(() => import("./pages/PartnerPortalsPage"));
+const StaffMembersPage    = lazy(() => import("./pages/StaffMembersPage"));
+const RegisterPersonPage  = lazy(() => import("./pages/staff/RegisterPersonPage"));
+const PersonProfilePage   = lazy(() => import("./pages/hr/PersonProfilePage"));
+const PositionsPage       = lazy(() => import("./pages/PositionsPage"));
+const ReportsPage         = lazy(() => import("./pages/ReportsPage"));
 
-// Staff / HR Pages
-import RegisterPersonPage from "./pages/staff/RegisterPersonPage";
-import PersonProfilePage from "./pages/hr/PersonProfilePage";
+// Access — two separate pages, each lazy-loaded
+const AccessGroupsPage    = lazy(() => import("./pages/access/AccessGroupsPage"));
+const DeptMatrixPage      = lazy(() => import("./pages/access/DeptMatrixPage"));
+const StaffPermissionsPage = lazy(() => import("./pages/access/StaffPermissionsPage"));
 
-// Access Pages
-import DeptMatrixPage from "./pages/access/DeptMatrixPage";
-import AccessGroupsPage from "./pages/access/AccessGroupsPage";
+// Settings
+const MenuManager         = lazy(() => import("./pages/settings/MenuManager"));
+const MenuSeeder          = lazy(() => import("./pages/settings/MenuSeeder"));
 
-// Settings Pages
-import GeneralPreferences from "./pages/settings/GeneralPreferences";
-import BrandingTheming from "./pages/settings/BrandingTheming";
-import EmailTemplates from "./pages/settings/EmailTemplates";
-import IntegrationSetup from "./pages/settings/IntegrationSetup";
-import MenuManager from "./pages/settings/MenuManager";
-import MenuSeeder from "./pages/settings/MenuSeeder";
+// ── Suspense fallback ─────────────────────────────────────────────────────
+function PageLoader() {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-white">
+      <Loader2 size={32} className="animate-spin text-indigo-500" />
+    </div>
+  );
+}
 
-// Placeholder for unbuilt pages
-import PlaceholderPage from "./pages/PlaceholderPage";
+function S({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
+// ── Router ────────────────────────────────────────────────────────────────
 const router = createBrowserRouter([
   { path: "/login",    element: <LoginPage /> },
-  { path: "/register", element: <RegisterPage /> },
+  { path: "/register", element: <S><RegisterPage /></S> },
+  { path: "/403",      element: <AccessDeniedPage /> },
 
   {
     element: <ProtectedRoute />,
-    children: [
-      {
-        element: <DashboardLayout />,
-        children: [
-          { path: "/",         element: <Navigate to="/dashboard" replace /> },
-          { path: "/dashboard", element: <DashboardPage /> },
+    children: [{
+      element: <DashboardLayout />,
+      children: [
+        { path: "/",          element: <Navigate to="/dashboard" replace /> },
+        { path: "/dashboard", element: <S><DashboardPage /></S> },
 
-          // ── Accounts & Groups (legacy paths kept) ──────────────────────
-          { path: "/groups/companies",  element: <OrgTreeTable /> },
-          { path: "/groups/hierarchy",  element: <OrganizationChart /> },
-          { path: "/groups/staff",      element: <StaffMembersPage /> },
-          { path: "/groups/partners",   element: <PartnerPortalsPage /> },
+        // ── Org ──────────────────────────────────────────────────────────
+        { path: "/groups/companies", element: <S><OrgTreeTable /></S> },
+        { path: "/groups/hierarchy", element: <S><OrganizationChart /></S> },
+        { path: "/groups/partners",  element: <S><PartnerPortalsPage /></S> },
+        { path: "/groups/staff",     element: <S><StaffMembersPage /></S> },
+        { path: "/organization",     element: <S><OrganizationChart /></S> },
+        { path: "/organization/new", element: <S><OrganizationChart /></S> },
 
-          // ── HR Management ──────────────────────────────────────────────
-          // canonical HR paths (from spec)
-          { path: "/hr/staff",              element: <StaffMembersPage /> },
-          { path: "/hr/staff/register",     element: <RegisterPersonPage /> },
-          { path: "/hr/staff/:id",          element: <PersonProfilePage /> },
-          { path: "/hr/vacancies",          element: <PositionsPage /> },
-          { path: "/hr/vacancies/new",      element: <PositionsPage /> },
-          { path: "/hr/positions",          element: <PositionsPage /> },
-          { path: "/hr/reports",            element: <ReportsPage /> },
+        // ── HR ───────────────────────────────────────────────────────────
+        { path: "/hr/staff",            element: <S><StaffMembersPage /></S> },
+        { path: "/hr/staff/register",   element: <S><RegisterPersonPage /></S> },
+        { path: "/hr/staff/:id",        element: <S><PersonProfilePage /></S> },
+        { path: "/hr/persons",          element: <S><StaffMembersPage /></S> },
+        { path: "/hr/persons/register", element: <S><RegisterPersonPage /></S> },
+        { path: "/hr/persons/:id",      element: <S><PersonProfilePage /></S> },
+        { path: "/hr/vacancies",        element: <S><PositionsPage /></S> },
+        { path: "/hr/vacancies/new",    element: <S><PositionsPage /></S> },
+        { path: "/hr/positions",        element: <S><PositionsPage /></S> },
+        { path: "/hr/reports",          element: <S><ReportsPage /></S> },
+        { path: "/positions",           element: <S><PositionsPage /></S> },
+        { path: "/positions/new",       element: <S><PositionsPage /></S> },
+        { path: "/staff/register",      element: <S><RegisterPersonPage /></S> },
 
-          // legacy staff register path
-          { path: "/staff/register",        element: <RegisterPersonPage /> },
+        // ── Access — TWO separate routes, two separate pages ─────────────
+        { path: "/access",                    element: <Navigate to="/access/groups" replace /> },
+        { path: "/access/groups",             element: <S><AccessGroupsPage /></S> },
+        { path: "/access/groups/new",         element: <S><AccessGroupsPage /></S> },
+        { path: "/access/dept",               element: <S><DeptMatrixPage /></S> },
+        { path: "/access/department/:deptId", element: <S><DeptMatrixPage /></S> },
+        { path: "/access/matrix/:deptId",     element: <S><DeptMatrixPage /></S> },
+        { path: "/access/staff/:staffId",     element: <S><StaffPermissionsPage /></S> },
+        { path: "/rbac/staff/:staffId",       element: <S><StaffPermissionsPage /></S> },
 
-          // ── Organization ───────────────────────────────────────────────
-          { path: "/organization",          element: <OrganizationChart /> },
-          { path: "/organization/new",      element: <OrganizationChart /> },
+        // ── Settings ─────────────────────────────────────────────────────
+        { path: "/settings",              element: <Navigate to="/settings/general" replace /> },
+        { path: "/settings/menus",        element: <S><MenuManager /></S> },
+        { path: "/settings/seed-menus",   element: <S><MenuSeeder /></S> },
+        { path: "/menus",                 element: <S><MenuManager /></S> },
 
-          // ── Access Management ──────────────────────────────────────────
-          { path: "/access",                        element: <Navigate to="/access/groups" replace /> },
-          { path: "/access/groups",                 element: <AccessGroupsPage /> },
-          { path: "/access/groups/new",             element: <AccessGroupsPage /> },
-          { path: "/access/department/:deptId",     element: <DeptMatrixPage /> },
-
-          // ── Financial Operations ───────────────────────────────────────
-          { path: "/finance/revenue",   element: <PlaceholderPage title="Revenue Dashboard" /> },
-          { path: "/finance/invoices",  element: <PlaceholderPage title="Invoices & Billing" /> },
-          { path: "/finance/expenses",  element: <PlaceholderPage title="Expense Tracking" /> },
-          { path: "/finance/tax",       element: <PlaceholderPage title="Tax Documentation" /> },
-          { path: "/finance/audits",    element: <PlaceholderPage title="Audit Logs" /> },
-
-          // ── System Analytics ───────────────────────────────────────────
-          { path: "/analytics/traffic",    element: <PlaceholderPage title="Live Traffic" /> },
-          { path: "/analytics/engagement", element: <PlaceholderPage title="User Engagement" /> },
-          { path: "/analytics/reports",    element: <PlaceholderPage title="Custom Reports" /> },
-          { path: "/analytics/export",     element: <PlaceholderPage title="Data Exports" /> },
-
-          // ── Security & Access (legacy) ─────────────────────────────────
-          { path: "/security/roles",        element: <PlaceholderPage title="Roles & Permissions" /> },
-          { path: "/security/auth-logs",    element: <PlaceholderPage title="Authentication Logs" /> },
-          { path: "/security/api-keys",     element: <PlaceholderPage title="API Key Management" /> },
-          { path: "/security/ip-whitelist", element: <PlaceholderPage title="IP Whitelisting" /> },
-
-          // ── Platform Settings ──────────────────────────────────────────
-          { path: "/settings/general",      element: <GeneralPreferences /> },
-          { path: "/settings/branding",     element: <BrandingTheming /> },
-          { path: "/settings/emails",       element: <EmailTemplates /> },
-          { path: "/settings/integrations", element: <IntegrationSetup /> },
-          { path: "/settings/menus",        element: <MenuManager /> },
-          { path: "/settings/seed-menus",   element: <MenuSeeder /> },
-          { path: "/settings",              element: <Navigate to="/settings/general" replace /> },
-        ],
-      },
-    ],
+        // ── Placeholders ─────────────────────────────────────────────────
+        { path: "/finance/revenue",   element: <PlaceholderPage title="Revenue Dashboard" /> },
+        { path: "/finance/invoices",  element: <PlaceholderPage title="Invoices & Billing" /> },
+        { path: "/analytics/reports", element: <PlaceholderPage title="Custom Reports" /> },
+        { path: "/security/roles",    element: <PlaceholderPage title="Roles & Permissions" /> },
+      ],
+    }],
   },
 
-  // ── FALLBACK ──────────────────────────────────────────────────────────────
   { path: "*", element: <Navigate to="/dashboard" replace /> },
 ]);
 
