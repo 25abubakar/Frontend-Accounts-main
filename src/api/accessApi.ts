@@ -153,8 +153,15 @@ export const accessApi = {
   },
 
   // PUT /api/access/groups/{id}/features
-  updateGroupFeatures: async (id: number, payload: UpdateGroupFeaturesDto): Promise<void> => {
-    await api.put(`/api/access/groups/${id}/features`, payload);
+  updateGroupFeatures: async (id: number, payload: UpdateGroupFeaturesDto): Promise<{ message: string }> => {
+    const { data } = await api.put(`/api/access/groups/${id}/features`, payload);
+    return data;
+  },
+
+  // POST /api/access/groups/{id}/sync — Manual sync group features to department matrix
+  syncGroupToMatrix: async (id: number): Promise<{ success: boolean; message: string; staffSynced: number; permissionsSynced: number }> => {
+    const { data } = await api.post(`/api/access/groups/${id}/sync`);
+    return data;
   },
 
   // ── Staff ↔ Groups ────────────────────────────────────────────────────

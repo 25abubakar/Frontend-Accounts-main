@@ -24,6 +24,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { accessApi, type AccessGroupDto, type FeatureDto, type CreateGroupDto } from "../../api/accessApi";
 import { menuApi, type ApiMenuItem } from "../../api/menuApi";
+import { flattenMenuToFeatures } from "../../lib/utils";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 function toArr<T>(v: unknown): T[] {
@@ -33,17 +34,6 @@ function toArr<T>(v: unknown): T[] {
     for (const k of ["$values", "data", "items"]) if (Array.isArray(o[k])) return o[k] as T[];
   }
   return [];
-}
-
-function flattenMenuToFeatures(items: ApiMenuItem[], prefix = ""): FeatureDto[] {
-  const result: FeatureDto[] = [];
-  for (const item of items) {
-    const key  = `MENU_${item.id}`;
-    const name = prefix ? `${prefix} › ${item.title}` : item.title;
-    result.push({ featureKey: key, featureName: name, module: "Menu" });
-    if (item.children?.length) result.push(...flattenMenuToFeatures(item.children, item.title));
-  }
-  return result;
 }
 
 function groupByModule(features: FeatureDto[]): Record<string, FeatureDto[]> {
