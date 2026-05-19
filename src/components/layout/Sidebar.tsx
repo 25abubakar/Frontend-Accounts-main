@@ -108,13 +108,12 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
   const fetchMenu = useCallback(async () => {
     try {
       setLoading(true);
-      // Primary: RBAC-filtered sidebar
+      // Primary: RBAC-filtered sidebar (backend already filters by user permissions)
       const items = await rbacApi.getSidebar();
       if (items.length > 0) {
-        // Filter out items with no route and no children
-        const filtered = items.filter(i => i.route || (i.children && i.children.length > 0));
-        setMenuItems(filtered.length > 0 ? filtered : STATIC_NAV);
-        setUsingFallback(filtered.length === 0);
+        // Backend already filtered - just use what we get
+        setMenuItems(items);
+        setUsingFallback(false);
       } else {
         // Fallback: try the menu API
         const menuData = await menuApi.getSidebarTree();
@@ -132,17 +131,19 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
           setMenuItems(arr.map(convert));
           setUsingFallback(false);
         } else {
-          setMenuItems(STATIC_NAV);
+          // Only show static nav for admins
+          setMenuItems(isAdmin ? STATIC_NAV : []);
           setUsingFallback(true);
         }
       }
     } catch {
-      setMenuItems(STATIC_NAV);
+      // Only show static nav for admins on error
+      setMenuItems(isAdmin ? STATIC_NAV : []);
       setUsingFallback(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin]);
 
   useEffect(() => {
     if (isAuthenticated) fetchMenu();
@@ -152,8 +153,9 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
 
   const toggleMenu = (id: number) => setOpenMenuId(openMenuId === id ? null : id);
 
-  // Apply MENU permission filter
-  const visibleItems = filterItems(menuItems);
+  // Apply MENU permission filter ONLY if backend didn't filter
+  // Backend should already filter, so we trust what we get
+  const visibleItems = menuItems;
 
   const renderItem = (item: SidebarItem) => {
     // Skip items with no route and no children
@@ -262,13 +264,15 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
         )}
       </nav>
 
-      {/* Add Menu button */}
-      <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
-        <button onClick={() => setIsAddModalOpen(true)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-200 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-xl text-sm font-bold transition-colors">
-          <Plus size={16} strokeWidth={3} /> Add Menu Item
-        </button>
-      </div>
+      {/* Add Menu button - Only for Admins */}
+      {isAdmin && (
+        <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
+          <button onClick={() => setIsAddModalOpen(true)}
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-200 hover:bg-blue-100 text-slate-600 hover:text-blue-600 rounded-xl text-sm font-bold transition-colors">
+            <Plus size={16} strokeWidth={3} /> Add Menu Item
+          </button>
+        </div>
+      )}
 
       <AddMenuModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSuccess={fetchMenu} />
     </aside>

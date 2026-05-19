@@ -23,10 +23,12 @@ export const staffApi = {
   },
 
   // POST /api/employees/hire-person/{vacancyId}?personId=  — hire already-registered person
-  hireRegisteredPerson: async (vacancyId: string, personId: string): Promise<StaffDto> => {
-    const response = await api.post<StaffDto>(`/api/employees/hire-person/${vacancyId}`, null, {
-      params: { personId },
-    });
+  hireRegisteredPerson: async (vacancyId: string, personId: string): Promise<StaffDto & { staffId: string }> => {
+    const response = await api.post<StaffDto & { staffId: string }>(
+      `/api/employees/hire-person/${vacancyId}`, 
+      null, 
+      { params: { personId } }
+    );
     return response.data;
   },
 

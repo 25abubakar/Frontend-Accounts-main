@@ -230,7 +230,59 @@ export default function RegisterPersonPage() {
       const personId = created.person.personId;
       const staffName = created.person.fullName || fullName || "New Staff Member";
 
-      await staffApi.hireRegisteredPerson(selectedVacancy.vacancyId, personId);
+      // Hire the person to the vacancy — backend returns StaffDto with staffId
+      const hireResult = await staffApi.hireRegisteredPerson(selectedVacancy.vacancyId, personId);
+      
+      // Extract staffId — try multiple possible field names from backend
+      let staffId: string | null =
+        hireResult?.staffId ||
+        (hireResult as any)?.StaffId ||
+        (hireResult as any)?.id ||
+        null;
+
+      // Fallback: if staffId not in hire response, search by personId from staff list
+      if (!staffId) {
+        try {
+          const { staffApi: sApi } = await import('../../api/staffApi');
+          const allStaff = await sApi.getAll();
+          const found = allStaff.find(s => 
+            (s as any).personId === personId || 
+            (s as any).PersonId === personId
+          );
+          if (found) staffId = found.staffId;
+        } catch { /* ignore */ }
+      }
+
+      // Auto-assign to access group based on job title
+      if (selectedVacancy.jobTitle) {
+        try {
+          const { accessApi } = await import('../../api/accessApi');
+          
+          // Step 1: Ensure group exists for this job title
+          const groups = await accessApi.getGroups();
+          let matchingGroup = groups.find(g => 
+            g.groupName.toLowerCase() === selectedVacancy.jobTitle.toLowerCase()
+          );
+          
+          // Step 2: If group doesn't exist, create it automatically
+          if (!matchingGroup) {
+            const newGroup = await accessApi.createGroup({
+              groupName: selectedVacancy.jobTitle,
+              description: `Auto-created group for ${selectedVacancy.jobTitle} role`,
+              featureKeys: [],
+            });
+            matchingGroup = newGroup;
+          }
+          
+          // Step 3: Add staff to group
+          if (matchingGroup && staffId) {
+            await accessApi.addStaffToGroup(staffId, matchingGroup.groupId);
+          }
+        } catch (groupErr) {
+          console.error('Failed to auto-assign to group:', groupErr);
+          // Don't fail the registration if group assignment fails
+        }
+      }
 
       setSuccess({ 
         loginId: created.generatedLoginId || previewLoginId || "", 

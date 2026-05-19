@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 
 import ProtectedRoute  from "./components/shared/ProtectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
+import { AuthProvider } from "./context/AuthContext";
 
 // ── Eager (small, always needed) ─────────────────────────────────────────
 import LoginPage        from "./features/auth/LoginPage";
@@ -112,5 +113,9 @@ const router = createBrowserRouter([
 ]);
 
 export default function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <AuthProvider>
+      <RouterProvider router={router} />
+    </AuthProvider>
+  );
 }

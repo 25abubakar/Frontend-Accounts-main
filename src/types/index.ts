@@ -132,6 +132,7 @@ export interface VacancyDto {
 
 export interface StaffDto {
   staffId: string;
+  personId?: string;       // may be returned by backend
   fullName: string;
   email: string;
   phone: string;

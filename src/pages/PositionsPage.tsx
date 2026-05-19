@@ -11,6 +11,8 @@ import type { VacancyDto, CreatePositionDto, UpdateVacancyDto, OrgNode } from ".
 import { containerVariants, itemVariants } from "../utils/orgGroupTreeDesign";
 import Can from "../components/shared/Can";
 import { FEATURE } from "../lib/featureKeys";
+import { useAuth } from "../context/AuthContext";
+import { PERMISSIONS } from "../lib/permissions";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 const INPUT =
@@ -55,10 +57,39 @@ function PositionModal({ mode, vacancy, branches, onClose, onSaved }: PositionMo
     try {
       setSaving(true); setError(null);
       if (mode === "add") {
-        const payload: CreatePositionDto = { organizationId: orgId, jobTitle: jobTitle.trim(), department: department.trim() || undefined };
+        const payload: CreatePositionDto = { 
+          organizationId: orgId, 
+          jobTitle: jobTitle.trim(), 
+          department: department.trim() || undefined 
+        };
         await positionApi.create(payload);
+        
+        // Auto-create access group for this job title
+        try {
+          const { accessApi } = await import('../api/accessApi');
+          const groups = await accessApi.getGroups();
+          const groupExists = groups.some(g => 
+            g.groupName.toLowerCase() === jobTitle.trim().toLowerCase()
+          );
+          
+          if (!groupExists) {
+            await accessApi.createGroup({
+              groupName: jobTitle.trim(),
+              description: `Auto-created group for ${jobTitle.trim()} role`,
+              featureKeys: [],
+            });
+          }
+        } catch (groupErr: unknown) {
+          // Log but don't block — position was created successfully
+          const e = groupErr as { response?: { data?: { message?: string } } };
+          console.warn('Auto-create group failed:', e.response?.data?.message ?? groupErr);
+        }
       } else {
-        const payload: UpdateVacancyDto = { organizationId: orgId, jobTitle: jobTitle.trim(), department: department.trim() || undefined };
+        const payload: UpdateVacancyDto = { 
+          organizationId: orgId, 
+          jobTitle: jobTitle.trim(), 
+          department: department.trim() || undefined 
+        };
         await positionApi.update(vacancy!.vacancyId, payload);
       }
       onSaved();

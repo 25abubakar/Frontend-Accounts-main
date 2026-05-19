@@ -2,6 +2,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Loader2, CheckCircle2, AlertCircle, Zap, Trash2 } from "lucide-react";
 import { menuApi } from "../../api/menuApi";
+import { useAuthStore } from "../../store/authStore";
+import NoAccessMessage from "../../components/shared/NoAccessMessage";
 
 // ── The full navigation structure to seed ────────────────────────────────
 const MENU_STRUCTURE = [
@@ -47,6 +49,22 @@ export default function MenuSeeder() {
   const [status, setStatus] = useState<SeedStatus>("idle");
   const [logs, setLogs] = useState<SeedLog[]>([]);
   const [clearing, setClearing] = useState(false);
+
+  // Check if user is admin
+  const userRoles = useAuthStore(s => s.userRoles);
+  const isAdmin = userRoles.some(r =>
+    ["admin", "superadmin", "super admin", "ceo", "dutyceo"].includes(r.toLowerCase())
+  );
+
+  // If not admin, show access denied
+  if (!isAdmin) {
+    return (
+      <NoAccessMessage
+        title="Admin Access Required"
+        message="Only administrators can seed menu items. Contact your system administrator if you need access."
+      />
+    );
+  }
 
   const addLog = (log: SeedLog) => setLogs(prev => [...prev, log]);
 

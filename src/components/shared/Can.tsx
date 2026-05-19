@@ -10,16 +10,43 @@
  *   <Can permission="EMPLOYEE_DELETE" fallback={<span>No access</span>}>
  *     <button>Delete</button>
  *   </Can>
+ *
+ *   <Can anyPermission={["EMPLOYEE_VIEW", "EMPLOYEE_VIEW_ALL"]}>
+ *     <EmployeeList />
+ *   </Can>
+ *
+ *   <Can allPermissions={["EMPLOYEE_VIEW", "EMPLOYEE_EDIT"]}>
+ *     <EditEmployeeForm />
+ *   </Can>
  */
-import { useAuthStore } from '../../store/authStore';
+import { useAuth } from '../../context/AuthContext';
 
 interface CanProps {
-  permission: string;
+  permission?: string;
+  anyPermission?: string[];
+  allPermissions?: string[];
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
 
-export default function Can({ permission, children, fallback = null }: CanProps) {
-  const hasPermission = useAuthStore(s => s.hasPermission);
-  return hasPermission(permission) ? <>{children}</> : <>{fallback}</>;
+export default function Can({
+  permission,
+  anyPermission,
+  allPermissions,
+  children,
+  fallback = null,
+}: CanProps) {
+  const { hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
+
+  let hasAccess = false;
+
+  if (permission) {
+    hasAccess = hasPermission(permission);
+  } else if (anyPermission) {
+    hasAccess = hasAnyPermission(anyPermission);
+  } else if (allPermissions) {
+    hasAccess = hasAllPermissions(allPermissions);
+  }
+
+  return hasAccess ? <>{children}</> : <>{fallback}</>;
 }

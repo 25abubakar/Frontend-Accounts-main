@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Loader2, Trash2, LayoutGrid, AlertCircle, Edit3, Plus } from 'lucide-react';
 import { menuApi, type ApiMenuItem } from '../../api/menuApi';
 import AddMenuModal from '../../components/layout/AddMenuModal';
+import { useAuthStore } from '../../store/authStore';
+import NoAccessMessage from '../../components/shared/NoAccessMessage';
 
 export default function MenuManager() {
   const [menus, setMenus] = useState<ApiMenuItem[]>([]);
@@ -11,6 +13,22 @@ export default function MenuManager() {
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<ApiMenuItem | null>(null);
+
+  // Check if user is admin
+  const userRoles = useAuthStore(s => s.userRoles);
+  const isAdmin = userRoles.some(r =>
+    ["admin", "superadmin", "super admin", "ceo", "dutyceo"].includes(r.toLowerCase())
+  );
+
+  // If not admin, show access denied
+  if (!isAdmin) {
+    return (
+      <NoAccessMessage
+        title="Admin Access Required"
+        message="Only administrators can manage menu items. Contact your system administrator if you need access."
+      />
+    );
+  }
 
 const fetchAllMenus = async () => {
     try {

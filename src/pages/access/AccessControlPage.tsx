@@ -4,7 +4,7 @@
  *   Tab 1 — Access Groups  (job-title / role based)
  *   Tab 2 — Dept Permissions (branch/department matrix — TRI-STATE)
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -25,7 +25,7 @@ import {
 import { staffApi } from "../../api/staffApi";
 import { orgTreeApi } from "../../api/orgTreeApi";
 import type { StaffDto, OrgNode } from "../../types";
-import TriStateCheckbox, { booleanToState, stateToBoolean } from "../../components/shared/TriStateCheckbox";
+import TriStateCheckbox, { booleanToState } from "../../components/shared/TriStateCheckbox";
 
 // ── Tri-state PermMap ─────────────────────────────────────────────────────
 // rowKey → featureKey → PermissionState ("ALLOW" | "DENY" | "INHERIT")
@@ -58,8 +58,8 @@ function shortLabel(key: string) {
 
 function rowKey(r: MatrixStaffRow) { return r.staffId ?? r.personId; }
 
-// Legacy boolean PermMap (kept for compat)
-type PermMap = Record<string, Record<string, boolean>>;
+// Legacy boolean PermMap (kept for compat) - currently unused
+// type PermMap = Record<string, Record<string, boolean>>;
 
 function buildTriPermMap(staff: MatrixStaffRow[]): TriPermMap {
   const m: TriPermMap = {};

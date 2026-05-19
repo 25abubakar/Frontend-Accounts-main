@@ -7,19 +7,23 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Layers, Plus, Search, X, Loader2, AlertCircle, Zap,
+  Layers, Plus, Search, X, Loader2, AlertCircle, Zap, RefreshCw,
 } from "lucide-react";
 import { accessApi, type AccessGroupDto, type FeatureDto } from "../../api/accessApi";
 import { menuApi, type ApiMenuItem } from "../../api/menuApi";
 import { staffApi } from "../../api/staffApi";
 import type { StaffDto } from "../../types";
 import { flattenMenuToFeatures } from "../../lib/utils";
+import { useAuth } from "../../context/AuthContext";
+import { PERMISSIONS } from "../../lib/permissions";
 import {
   toArr, roleBadge,
   GroupModal, GroupPanel, GroupTable, DeleteGroupModal,
 } from "../../components/access";
 
 export default function AccessGroupsPage() {
+  const { accessibleData, hasPermission } = useAuth();
+  
   // ── State ───────────────────────────────────────────────────────────────
   const [groups, setGroups]           = useState<AccessGroupDto[]>([]);
   const [allFeatures, setAllFeatures] = useState<FeatureDto[]>([]);
@@ -30,6 +34,7 @@ export default function AccessGroupsPage() {
   const [seeding, setSeeding]         = useState(false);
   const [seedMsg, setSeedMsg]         = useState<string | null>(null);
   const [syncMsg, setSyncMsg]         = useState<string | null>(null);
+  const [syncing, setSyncing]         = useState(false);
 
   // Modal states
   const [createOpen, setCreateOpen]       = useState(false);
@@ -41,25 +46,50 @@ export default function AccessGroupsPage() {
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true); setError(null);
-      const [g, f, s, menus] = await Promise.all([
-        accessApi.getGroups(),
+      
+      // Always fetch all groups directly (don't use filtered accessibleData)
+      // Access Groups page should show all groups for management
+      const groupsData = await accessApi.getGroups();
+      
+      // Use accessible data for staff if available
+      const staffData = accessibleData.staff.length > 0
+        ? accessibleData.staff
+        : await staffApi.getAll();
+      
+      const [f, menus] = await Promise.all([
         accessApi.getAllFeatures(),
-        staffApi.getAll(),
         menuApi.getSidebarTree().catch(() => [] as ApiMenuItem[]),
       ]);
-      setGroups(toArr<AccessGroupDto>(g));
+      
+      setGroups(toArr<AccessGroupDto>(groupsData));
       // Merge API features + menu features
       const menuFeats = flattenMenuToFeatures(menus);
       setAllFeatures([...toArr<FeatureDto>(f), ...menuFeats]);
-      setAllStaff(toArr<StaffDto>(s));
+      setAllStaff(toArr<StaffDto>(staffData));
     } catch {
       setError("Failed to load access groups.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [accessibleData.staff]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Update editTarget and viewTarget when groups change ────────────────
+  useEffect(() => {
+    if (editTarget) {
+      const updated = groups.find(g => g.groupId === editTarget.groupId);
+      if (updated) {
+        setEditTarget(updated);
+      }
+    }
+    if (viewTarget) {
+      const updated = groups.find(g => g.groupId === viewTarget.groupId);
+      if (updated) {
+        setViewTarget(updated);
+      }
+    }
+  }, [groups, editTarget, viewTarget]);
 
   // ── Seed from job titles ────────────────────────────────────────────────
   const seedFromJobTitles = async () => {
@@ -93,6 +123,30 @@ export default function AccessGroupsPage() {
     }
   };
 
+  // ── Sync all groups to matrix ───────────────────────────────────────────
+  const syncAllGroups = async () => {
+    try {
+      setSyncing(true); setSyncMsg(null);
+      let totalStaff = 0;
+      let totalPerms = 0;
+      for (const g of groups) {
+        try {
+          const res = await accessApi.syncGroupToMatrix(g.groupId);
+          if (res.success) {
+            totalStaff += res.staffSynced ?? 0;
+            totalPerms += res.permissionsSynced ?? 0;
+          }
+        } catch { /* skip failed groups */ }
+      }
+      setSyncMsg(`✅ Synced ${totalStaff} staff members with ${totalPerms} permissions`);
+      setTimeout(() => setSyncMsg(null), 5000);
+    } catch {
+      setSyncMsg("❌ Failed to sync groups");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // ── Delete handler ──────────────────────────────────────────────────────
   const handleDelete = async (group: AccessGroupDto) => {
     try {
@@ -107,7 +161,9 @@ export default function AccessGroupsPage() {
 
   // ── Save handler (from GroupModal) ──────────────────────────────────────
   const handleSaved = (msg?: string) => {
+    // Refresh all groups data
     fetchAll();
+    
     if (msg) {
       setSyncMsg(msg);
       setTimeout(() => setSyncMsg(null), 5000);
@@ -154,7 +210,7 @@ export default function AccessGroupsPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {unseeded.length > 0 && (
+            {unseeded.length > 0 && hasPermission(PERMISSIONS.ACCESS_GROUP_CREATE) && (
               <button
                 onClick={seedFromJobTitles}
                 disabled={seeding}
@@ -165,12 +221,25 @@ export default function AccessGroupsPage() {
                 Seed from Job Titles ({unseeded.length})
               </button>
             )}
-            <button
-              onClick={() => setCreateOpen(true)}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-sm font-black text-white shadow-md hover:shadow-lg transition-all"
-            >
-              <Plus size={15} /> Create Group
-            </button>
+            {hasPermission(PERMISSIONS.ACCESS_GROUP_EDIT) && (
+              <button
+                onClick={syncAllGroups}
+                disabled={syncing || groups.length === 0}
+                className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                title="Sync all group permissions to department matrix"
+              >
+                {syncing ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+                Sync All Groups
+              </button>
+            )}
+            {hasPermission(PERMISSIONS.ACCESS_GROUP_CREATE) && (
+              <button
+                onClick={() => setCreateOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-sm font-black text-white shadow-md hover:shadow-lg transition-all"
+              >
+                <Plus size={15} /> Create Group
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -198,8 +267,8 @@ export default function AccessGroupsPage() {
           </motion.div>
         )}
 
-        {/* Unseeded hint */}
-        {!loading && unseeded.length > 0 && (
+        {/* Unseeded hint - only show if user can seed */}
+        {!loading && unseeded.length > 0 && hasPermission(PERMISSIONS.ACCESS_GROUP_CREATE) && (
           <div className="mb-4 rounded-2xl border border-amber-100 bg-amber-50 p-4 shrink-0">
             <p className="text-xs font-black text-amber-700 mb-2">
               💡 {unseeded.length} job title{unseeded.length !== 1 ? "s" : ""} without a group:

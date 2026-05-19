@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   LayoutGrid, List, Globe2, ChevronRight, ArrowBigLeft, Plus,
   Filter, X, ChevronDown

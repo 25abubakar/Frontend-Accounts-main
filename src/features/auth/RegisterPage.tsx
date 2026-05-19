@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock, EyeOff, Eye, ShieldCheck, ArrowRight, User, Briefcase, ChevronDown, AlertCircle, Loader2 } from "lucide-react";
+import { Mail, Lock, EyeOff, Eye, ShieldCheck, ArrowRight, User, Briefcase, ChevronDown, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 

@@ -6,6 +6,8 @@ import { Search, Globe2, ChevronDown, Briefcase, Users, UserPlus, AlertCircle, X
 import { staffApi } from "../api/staffApi";
 import { personsApi, type PersonDto } from "../api/personsApi";
 import type { StaffDto } from "../types";
+import { useAuth } from "../context/AuthContext";
+import { PERMISSIONS } from "../lib/permissions";
 
 import { StaffTable, PersonsTable } from "../components/staff/StaffTables";
 import { FireModal, TransferModal, DeletePersonModal, ViewPersonModal, EditStaffModal, EditPersonModal } from "../components/staff/StaffModals";
@@ -16,6 +18,7 @@ type MainTab = "staff" | "persons";
 
 export default function StaffMembersPage() {
   const navigate = useNavigate();
+  const { accessibleData, hasPermission, hasAnyPermission } = useAuth();
 
   const [staffList, setStaffList] = useState<StaffDto[]>([]);
   const [personsList, setPersonsList] = useState<PersonDto[]>([]);
@@ -39,22 +42,32 @@ export default function StaffMembersPage() {
   const fetchStaff = useCallback(async () => {
     try {
       setLoadingStaff(true);
-      const data = await staffApi.getAll();
-      setStaffList(data);
+      // Use accessible data if available, otherwise fetch from API
+      if (accessibleData.staff.length > 0) {
+        setStaffList(accessibleData.staff);
+      } else {
+        const data = await staffApi.getAll();
+        setStaffList(data);
+      }
     } catch {
       setApiError("Unable to load staff data.");
     } finally { setLoadingStaff(false); }
-  }, []);
+  }, [accessibleData.staff]);
 
   const fetchPersons = useCallback(async () => {
     try {
       setLoadingPersons(true);
-      const data = await personsApi.getAll();
-      setPersonsList(data);
+      // Use accessible data if available, otherwise fetch from API
+      if (accessibleData.persons.length > 0) {
+        setPersonsList(accessibleData.persons);
+      } else {
+        const data = await personsApi.getAll();
+        setPersonsList(data);
+      }
     } catch {
       setApiError("Unable to load persons data.");
     } finally { setLoadingPersons(false); }
-  }, []);
+  }, [accessibleData.persons]);
 
   useEffect(() => {
     fetchStaff();

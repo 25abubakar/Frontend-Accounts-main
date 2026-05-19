@@ -47,19 +47,32 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
     if (!name.trim()) { setErr("Group name is required."); return; }
     try {
       setSaving(true); setErr(null);
-      const payload: CreateGroupDto = {
-        groupName:   name.trim(),
-        description: desc.trim() || undefined,
-        featureKeys: Array.from(sel),
-      };
-
+      
       let syncMsg: string | undefined;
 
       if (mode === "create") {
+        const payload: CreateGroupDto = {
+          groupName:   name.trim(),
+          description: desc.trim() || undefined,
+          featureKeys: Array.from(sel),
+        };
         await accessApi.createGroup(payload);
       } else if (group) {
-        await accessApi.updateGroup(group.groupId, payload);
-        const result = await accessApi.updateGroupFeatures(group.groupId, { featureKeys: Array.from(sel) });
+        // For edit mode: Update name/description separately, then features
+        // Only update name/description if changed
+        if (name.trim() !== group.groupName || (desc.trim() || undefined) !== group.description) {
+          const basicPayload: CreateGroupDto = {
+            groupName:   name.trim(),
+            description: desc.trim() || undefined,
+            featureKeys: toArr<string>(group.features), // Keep existing features for now
+          };
+          await accessApi.updateGroup(group.groupId, basicPayload);
+        }
+        
+        // Always update features (this is the main edit action)
+        const result = await accessApi.updateGroupFeatures(group.groupId, { 
+          featureKeys: Array.from(sel) 
+        });
         // Backend returns { message: "Features updated and matrix synced." }
         syncMsg = result?.message;
       }

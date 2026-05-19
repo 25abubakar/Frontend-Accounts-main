@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { AuthAPI } from "../../api/auth";
 import { rbacApi } from "../../api/rbacApi";
+import { useAuth } from "../../context/AuthContext";
 import api from "../../api/axios";
 
 const loginSchema = z.object({
@@ -26,6 +27,7 @@ export default function LoginPage() {
   const setLogin  = useAuthStore(s => s.setLogin);
   const setPermissions = useAuthStore(s => s.setPermissions);
   const setStaffId     = useAuthStore(s => s.setStaffId);
+  const { refreshAccessibleData } = useAuth();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -69,6 +71,11 @@ export default function LoginPage() {
           setPermissions(keys);
         }
       } catch { /* non-critical — permissions will be empty, all nav visible */ }
+
+      // 5. Fetch accessible data (permissions + filtered data)
+      try {
+        await refreshAccessibleData();
+      } catch { /* non-critical — will use empty permissions */ }
 
       navigate("/dashboard", { replace: true });
 
