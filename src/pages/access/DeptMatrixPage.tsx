@@ -23,8 +23,10 @@ import {
   type FeatureDto,
   type MatrixResponse,
 } from "../../api/accessApi";
+import { menuApi, type ApiMenuItem } from "../../api/menuApi";
 import { orgTreeApi } from "../../api/orgTreeApi";
 import type { OrgNode } from "../../types";
+import { flattenMenuToFeatures } from "../../lib/utils";
 
 // ── Type helpers ──────────────────────────────────────────────────────────
 type PermMap = Record<string, Record<string, boolean>>; // rowKey → featureKey → bool
@@ -57,9 +59,19 @@ function groupByModule(features: FeatureDto[]): Record<string, FeatureDto[]> {
   }, {});
 }
 
-function shortLabel(key: string): string {
-  const parts = key.split("_");
-  return parts[parts.length - 1].slice(0, 5).toUpperCase();
+function getFeatureDisplayName(name?: string, key?: string): string {
+  if (name && name.trim().length > 0) {
+    const parts = name.split("›");
+    return parts[parts.length - 1].trim();
+  }
+
+  // fallback if backend ever forgets featureName
+  if (!key) return "Feature";
+  return key
+    .replace("MENU_", "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
 }
 
 /** For a role group, compute the "majority" value for each feature (true if >50% have it) */
@@ -332,6 +344,9 @@ export default function DeptMatrixPage() {
   const [error, setError]           = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Module filter — "All" shows every feature column
+  const [activeModule, setActiveModule] = useState<string>("All");
+
   // Sticky header ref for scroll shadow
   const tableRef = useRef<HTMLDivElement>(null);
 
@@ -363,9 +378,20 @@ export default function DeptMatrixPage() {
     if (!selectedDept) return;
     try {
       setLoading(true); setError(null);
-      const data = await accessApi.getDeptMatrix(selectedDept);
-      setMatrixData(data);
-      const perms = buildPermMap(data.staff ?? []);
+      // Load matrix data AND menu items in parallel
+      const [data, menus] = await Promise.all([
+        accessApi.getDeptMatrix(selectedDept),
+        menuApi.getSidebarTree().catch(() => [] as ApiMenuItem[]),
+      ]);
+      // Merge API features with menu features
+      const menuFeats = flattenMenuToFeatures(menus);
+      const mergedFeatures: FeatureDto[] = [
+        ...(data.features ?? []),
+        ...menuFeats.filter(mf => !(data.features ?? []).some(f => f.featureKey === mf.featureKey)),
+      ];
+      const mergedData: MatrixResponse = { ...data, features: mergedFeatures };
+      setMatrixData(mergedData);
+      const perms = buildPermMap(mergedData.staff ?? []);
       setLocalPerms(perms);
       setOriginalPerms(JSON.parse(JSON.stringify(perms))); // deep clone
     } catch (e: unknown) {
@@ -377,11 +403,21 @@ export default function DeptMatrixPage() {
   useEffect(() => { loadMatrix(); }, [loadMatrix]);
 
   // ── Derived data ─────────────────────────────────────────────────────
-  const features = useMemo(() => matrixData?.features ?? [], [matrixData]);
-  const staff    = useMemo(() => matrixData?.staff    ?? [], [matrixData]);
-  const grouped  = useMemo(() => groupByModule(features), [features]);
-  const modules  = useMemo(() => Object.keys(grouped), [grouped]);
+  const features   = useMemo(() => matrixData?.features ?? [], [matrixData]);
+  const staff      = useMemo(() => matrixData?.staff    ?? [], [matrixData]);
+  const grouped    = useMemo(() => groupByModule(features), [features]);
+  const modules    = useMemo(() => Object.keys(grouped), [grouped]);
   const roleGroups = useMemo(() => groupByRole(staff), [staff]);
+
+  // Only show columns for the active module (or all)
+  const visibleFeatures = useMemo(() => {
+    if (activeModule === "All") return features;
+    return grouped[activeModule] ?? [];
+  }, [activeModule, features, grouped]);
+
+  // Grouped by module for the visible features only
+  const visibleGrouped = useMemo(() => groupByModule(visibleFeatures), [visibleFeatures]);
+  const visibleModules = useMemo(() => Object.keys(visibleGrouped), [visibleGrouped]);
 
   // Count total pending changes
   const pendingCount = useMemo(() => {
@@ -420,16 +456,16 @@ export default function DeptMatrixPage() {
   const handleSelectAllRow = useCallback((key: string) => {
     setLocalPerms(prev => ({
       ...prev,
-      [key]: Object.fromEntries(features.map(f => [f.featureKey, true])),
+      [key]: { ...prev[key], ...Object.fromEntries(visibleFeatures.map(f => [f.featureKey, true])) },
     }));
-  }, [features]);
+  }, [visibleFeatures]);
 
   const handleClearRow = useCallback((key: string) => {
     setLocalPerms(prev => ({
       ...prev,
-      [key]: Object.fromEntries(features.map(f => [f.featureKey, false])),
+      [key]: { ...prev[key], ...Object.fromEntries(visibleFeatures.map(f => [f.featureKey, false])) },
     }));
-  }, [features]);
+  }, [visibleFeatures]);
 
   // ── Grid select / clear ──────────────────────────────────────────────
   const handleSelectAll = useCallback(() => {
@@ -438,22 +474,22 @@ export default function DeptMatrixPage() {
       for (const r of staff) {
         if (!r.staffId) continue;
         const key = rowKey(r);
-        next[key] = Object.fromEntries(features.map(f => [f.featureKey, true]));
+        next[key] = { ...next[key], ...Object.fromEntries(visibleFeatures.map(f => [f.featureKey, true])) };
       }
       return next;
     });
-  }, [staff, features]);
+  }, [staff, visibleFeatures]);
 
   const handleClearAll = useCallback(() => {
     setLocalPerms(prev => {
       const next = { ...prev };
       for (const r of staff) {
         const key = rowKey(r);
-        next[key] = Object.fromEntries(features.map(f => [f.featureKey, false]));
+        next[key] = { ...next[key], ...Object.fromEntries(visibleFeatures.map(f => [f.featureKey, false])) };
       }
       return next;
     });
-  }, [staff, features]);
+  }, [staff, visibleFeatures]);
 
   // ── Reset ────────────────────────────────────────────────────────────
   const handleReset = useCallback(() => {
@@ -469,6 +505,7 @@ export default function DeptMatrixPage() {
       for (const r of staff) {
         if (!r.staffId) continue;
         const key = rowKey(r);
+        // Save ALL features (not just visible ones) to avoid losing hidden module data
         for (const f of features) {
           items.push({
             staffId:    r.staffId,
@@ -478,7 +515,6 @@ export default function DeptMatrixPage() {
         }
       }
       await accessApi.saveDeptMatrix(selectedDept, { items });
-      // Commit local → original
       setOriginalPerms(JSON.parse(JSON.stringify(localPerms)));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -486,6 +522,10 @@ export default function DeptMatrixPage() {
       setError("Failed to save permissions. Please try again.");
     } finally { setSaving(false); }
   };
+
+  function shortLabel(featureKey: string): import("react").ReactNode {
+    throw new Error("Function not implemented.");
+  }
 
   // ── Render ───────────────────────────────────────────────────────────
   return (
@@ -556,6 +596,22 @@ export default function DeptMatrixPage() {
             <Square size={12} /> Clear All
           </button>
 
+          {/* Module filter tabs */}
+          {modules.length > 0 && (
+            <div className="flex items-center gap-1 flex-wrap ml-2">
+              {["All", ...modules].map(mod => (
+                <button key={mod} onClick={() => setActiveModule(mod)}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all ${
+                    activeModule === mod
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
+                  }`}>
+                  {mod}
+                </button>
+              ))}
+            </div>
+          )}
+
           {matrixData && (
             <span className="ml-auto text-[11px] font-bold text-slate-400">
               {staff.length} person{staff.length !== 1 ? "s" : ""} ·{" "}
@@ -564,7 +620,7 @@ export default function DeptMatrixPage() {
                   {staff.filter(r => !r.isHired).length} not hired ·{" "}
                 </span>
               )}
-              {features.length} features
+              {visibleFeatures.length}/{features.length} features
             </span>
           )}
         </div>
@@ -614,7 +670,7 @@ export default function DeptMatrixPage() {
           <div ref={tableRef} className="h-full overflow-auto custom-scrollbar rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table className="min-w-full border-separate border-spacing-0 text-sm">
 
-              {/* ── Column headers ── */}
+              {/* ── Column headers — all data from API, nothing hardcoded ── */}
               <thead className="sticky top-0 z-20 bg-white shadow-sm">
                 {/* Module row */}
                 <tr>
@@ -623,8 +679,8 @@ export default function DeptMatrixPage() {
                       Person / Role
                     </span>
                   </th>
-                  {modules.map(mod => (
-                    <th key={mod} colSpan={grouped[mod].length}
+                  {visibleModules.map(mod => (
+                    <th key={mod} colSpan={visibleGrouped[mod].length}
                       className="border-b border-l border-slate-200 px-2 py-2 text-center">
                       <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500">{mod}</span>
                     </th>
@@ -633,16 +689,21 @@ export default function DeptMatrixPage() {
                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Row</span>
                   </th>
                 </tr>
-                {/* Feature key row */}
+                {/* Feature name row — featureName comes from API response, never hardcoded */}
                 <tr>
-                  {modules.map(mod =>
-                    grouped[mod].map(f => (
+                  {visibleModules.map(mod =>
+                    visibleGrouped[mod].map(f => (
                       <th key={f.featureKey}
-                        className="border-b border-l border-slate-200 px-2 py-2 text-center"
-                        title={f.featureName}>
-                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
-                          {shortLabel(f.featureKey)}
-                        </span>
+                        className="border-b border-l border-slate-200 px-2 py-2 text-center min-w-[90px]"
+                        title={`${f.featureName}\n${f.featureKey}`}>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 truncate max-w-[80px] block">
+                            {f.featureName.length > 12 ? f.featureName.slice(0, 12) + "…" : f.featureName}
+                          </span>
+                          <span className="text-[8px] font-mono text-slate-300 truncate max-w-[80px] block">
+                            {shortLabel(f.featureKey)}
+                          </span>
+                        </div>
                       </th>
                     ))
                   )}
@@ -655,9 +716,9 @@ export default function DeptMatrixPage() {
                   <RoleGroupRow
                     key={group.jobTitle}
                     group={group}
-                    features={features}
-                    modules={modules}
-                    grouped={grouped}
+                    features={visibleFeatures}
+                    modules={visibleModules}
+                    grouped={visibleGrouped}
                     localPerms={localPerms}
                     originalPerms={originalPerms}
                     onToggleCell={handleToggleCell}

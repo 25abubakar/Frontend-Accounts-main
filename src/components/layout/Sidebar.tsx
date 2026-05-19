@@ -40,8 +40,9 @@ const STATIC_NAV: SidebarItem[] = [
     { id: -34, title: "Reports",          icon: "BarChart3",  route: "/hr/reports",        sortOrder: 4, children: [] },
   ]},
   { id: -4,  title: "Access Control",    icon: "Shield",          route: null,                   sortOrder: 4, children: [
-    { id: -41, title: "Access Groups",    icon: "Layers",  route: "/access/groups", sortOrder: 1, children: [] },
-    { id: -42, title: "Dept Permissions", icon: "Shield",  route: "/access/dept",   sortOrder: 2, children: [] },
+    { id: -41, title: "Access Groups",    icon: "Layers",  route: "/access/groups",        sortOrder: 1, children: [] },
+    { id: -42, title: "Group Matrix",     icon: "Shield",  route: "/access/groups/matrix", sortOrder: 2, children: [] },
+    { id: -43, title: "Dept Permissions", icon: "Shield",  route: "/access/dept",          sortOrder: 3, children: [] },
   ]},
   { id: -5,  title: "Platform Settings", icon: "Settings",        route: null,                   sortOrder: 5, children: [
     { id: -51, title: "General",        icon: "Settings",    route: "/settings/general",      sortOrder: 1, children: [] },

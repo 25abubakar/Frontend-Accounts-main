@@ -23,8 +23,9 @@ const MENU_STRUCTURE = [
   { title: "Reports",          icon: "BarChart3",      route: "/hr/reports",        sortOrder: 4, parent: "HR Management" },
 
   // Access Control children
-  { title: "Access Groups",    icon: "Layers",         route: "/access/groups",     sortOrder: 1, parent: "Access Control" },
-  { title: "Dept Permissions", icon: "Shield",         route: "/access/department/1", sortOrder: 2, parent: "Access Control" },
+  { title: "Access Groups",    icon: "Layers",  route: "/access/groups",        sortOrder: 1, parent: "Access Control" },
+  { title: "Group Matrix",     icon: "Shield",  route: "/access/groups/matrix", sortOrder: 2, parent: "Access Control" },
+  { title: "Dept Permissions", icon: "Shield",  route: "/access/dept",          sortOrder: 3, parent: "Access Control" },
 
   // Platform Settings children
   { title: "General",          icon: "Settings",       route: "/settings/general",  sortOrder: 1, parent: "Platform Settings" },

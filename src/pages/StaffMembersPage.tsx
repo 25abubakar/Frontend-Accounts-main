@@ -10,6 +10,7 @@ import type { StaffDto } from "../types";
 import { StaffTable, PersonsTable } from "../components/staff/StaffTables";
 import { FireModal, TransferModal, DeletePersonModal, ViewPersonModal, EditStaffModal, EditPersonModal } from "../components/staff/StaffModals";
 import Can from "../components/shared/Can";
+import { FEATURE } from "../lib/featureKeys";
 
 type MainTab = "staff" | "persons";
 
@@ -91,7 +92,7 @@ export default function StaffMembersPage() {
             {staffList.length} hired employee{staffList.length !== 1 ? "s" : ""} · {personsList.filter(p => !p.isHired).length} not yet assigned
           </p>
         </div>
-        <Can permission="PERSON_REGISTER">
+        <Can permission={FEATURE.PERSON_REGISTER}>
           <button onClick={() => navigate("/hr/staff/register")} className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-md hover:shadow-lg transition-all">
             <UserPlus size={16} /> Register Person
           </button>

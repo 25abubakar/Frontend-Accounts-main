@@ -1,14 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Mail, Lock, EyeOff, Eye, ShieldCheck, ArrowRight, User, Briefcase, ChevronDown, AlertCircle } from "lucide-react";
+import { Mail, Lock, EyeOff, Eye, ShieldCheck, ArrowRight, User, Briefcase, ChevronDown, AlertCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 // Global Components & API
 import SuccessPopup from "../../components/global/SuccessPopup";
 import { AuthAPI } from "../../api/auth";
+import api from "../../api/axios";
 import type { RegisterDto } from "../../types";
 
 // 1. Strict Validation Schema
@@ -28,10 +29,30 @@ type RegisterFormValues = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null); // Added Error State
-  
+  const [showSuccess, setShowSuccess]   = useState(false);
+  const [apiError, setApiError]         = useState<string | null>(null);
+  // Roles fetched from backend — never hardcoded
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+  const [loadingRoles, setLoadingRoles]     = useState(true);
+
   const navigate = useNavigate();
+
+  // ── Fetch available roles from backend ──────────────────────────────
+  useEffect(() => {
+    api.get<{ id: string; email: string; userName: string; roles: string[] }[]>('/api/Auth/users')
+      .then(res => {
+        // Collect unique roles from all users
+        const roleSet = new Set<string>();
+        (res.data ?? []).forEach(u => (u.roles ?? []).forEach(r => roleSet.add(r)));
+        const roles = Array.from(roleSet).sort();
+        setAvailableRoles(roles.length > 0 ? roles : ["Manager", "AssistantManager", "Developer"]);
+      })
+      .catch(() => {
+        // Fallback to common roles if endpoint fails
+        setAvailableRoles(["Manager", "AssistantManager", "Developer"]);
+      })
+      .finally(() => setLoadingRoles(false));
+  }, []);
 
   const {
     register,
@@ -169,11 +190,12 @@ export default function RegisterPage() {
                 <div className={`relative flex items-center rounded-xl border bg-slate-50 transition-all focus-within:bg-white focus-within:ring-4 ${errors.role ? "border-red-400 focus-within:ring-red-500/15" : "border-slate-200 focus-within:border-[#00A3FF] focus-within:ring-[#00A3FF]/15"}`}>
                   <Briefcase size={16} className="absolute left-3.5 text-slate-400 pointer-events-none" />
                   <select {...register("role")} className="w-full bg-transparent py-3 pl-10 pr-4 text-sm font-medium outline-none appearance-none cursor-pointer text-slate-900">
-                    <option value="" disabled hidden>Select Role...</option>
-                    {/* CRITICAL FIX: Values must match exactly what was seeded in Program.cs */}
-                    <option value="Manager">Manager</option>
-                    <option value="AssistantManager">Assistant Manager</option>
-                    <option value="Developer">Developer</option>
+                    <option value="" disabled hidden>
+                      {loadingRoles ? "Loading roles…" : "Select Role..."}
+                    </option>
+                    {availableRoles.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
                   </select>
                   <ChevronDown size={14} className="absolute right-4 text-slate-400 pointer-events-none" />
                 </div>

@@ -78,6 +78,34 @@ export const INPUT_CLS =
 /** Standard label class */
 export const LABEL_CLS = "text-xs font-bold uppercase text-slate-500 mb-1.5 block";
 
+// ── Menu tree → FeatureDto[] ──────────────────────────────────────────────
+/**
+ * Flattens a sidebar menu tree into FeatureDto[] with module = "Menu".
+ * Used by DeptMatrixPage, AccessGroupsPage, GroupMatrixPage.
+ * Import from here — do NOT duplicate in each page file.
+ */
+export interface ApiMenuItemLike {
+  id: number;
+  title: string;
+  children?: ApiMenuItemLike[];
+}
+
+export function flattenMenuToFeatures(
+  items: ApiMenuItemLike[],
+  prefix = ""
+): FeatureLike[] {
+  const result: FeatureLike[] = [];
+  for (const item of items) {
+    const key  = `MENU_${item.id}`;
+    const name = prefix ? `${prefix} › ${item.title}` : item.title;
+    result.push({ featureKey: key, featureName: name, module: "Menu" });
+    if (item.children?.length) {
+      result.push(...flattenMenuToFeatures(item.children, item.title));
+    }
+  }
+  return result;
+}
+
 // ── Date formatter ────────────────────────────────────────────────────────
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "—";

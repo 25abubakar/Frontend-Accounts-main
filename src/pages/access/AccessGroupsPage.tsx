@@ -14,6 +14,7 @@ import { accessApi, type AccessGroupDto, type FeatureDto, type CreateGroupDto } 
 import { menuApi, type ApiMenuItem } from "../../api/menuApi";
 import { staffApi } from "../../api/staffApi";
 import type { StaffDto } from "../../types";
+import { flattenMenuToFeatures } from "../../lib/utils";
 
 // ── tiny helpers ──────────────────────────────────────────────────────────
 function toArr<T>(v: unknown): T[] {
@@ -28,18 +29,6 @@ function byModule(fs: FeatureDto[]) {
   return toArr<FeatureDto>(fs).reduce<Record<string,FeatureDto[]>>((a,f)=>{
     const m=f.module||"General";(a[m]??=[]).push(f);return a;
   },{});
-}
-
-// Flatten menu tree into FeatureDto list with module = "Menu"
-function flattenMenuToFeatures(items: ApiMenuItem[], prefix = ""): FeatureDto[] {
-  const result: FeatureDto[] = [];
-  for (const item of items) {
-    const key = `MENU_${item.id}`;
-    const name = prefix ? `${prefix} › ${item.title}` : item.title;
-    result.push({ featureKey: key, featureName: name, module: "Menu" });
-    if (item.children?.length) result.push(...flattenMenuToFeatures(item.children, item.title));
-  }
-  return result;
 }
 const GRADS=["from-indigo-400 to-violet-500","from-sky-400 to-blue-500","from-emerald-400 to-teal-500","from-rose-400 to-pink-500","from-amber-400 to-orange-500"];
 function grad(n:string){let h=0;for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))&0xffffffff;return GRADS[Math.abs(h)%GRADS.length];}

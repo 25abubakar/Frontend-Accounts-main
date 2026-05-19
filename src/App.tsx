@@ -22,10 +22,11 @@ const PersonProfilePage   = lazy(() => import("./pages/hr/PersonProfilePage"));
 const PositionsPage       = lazy(() => import("./pages/PositionsPage"));
 const ReportsPage         = lazy(() => import("./pages/ReportsPage"));
 
-// Access — two separate pages, each lazy-loaded
+// Access — separate pages, each lazy-loaded
 const AccessGroupsPage    = lazy(() => import("./pages/access/AccessGroupsPage"));
 const DeptMatrixPage      = lazy(() => import("./pages/access/DeptMatrixPage"));
 const StaffPermissionsPage = lazy(() => import("./pages/access/StaffPermissionsPage"));
+const GroupMatrixPage     = lazy(() => import("./pages/access/GroupMatrixPage"));
 
 // Settings
 const MenuManager         = lazy(() => import("./pages/settings/MenuManager"));
@@ -81,10 +82,11 @@ const router = createBrowserRouter([
         { path: "/positions/new",       element: <S><PositionsPage /></S> },
         { path: "/staff/register",      element: <S><RegisterPersonPage /></S> },
 
-        // ── Access — TWO separate routes, two separate pages ─────────────
+        // ── Access ───────────────────────────────────────────────────────
         { path: "/access",                    element: <Navigate to="/access/groups" replace /> },
         { path: "/access/groups",             element: <S><AccessGroupsPage /></S> },
         { path: "/access/groups/new",         element: <S><AccessGroupsPage /></S> },
+        { path: "/access/groups/matrix",      element: <S><GroupMatrixPage /></S> },
         { path: "/access/dept",               element: <S><DeptMatrixPage /></S> },
         { path: "/access/department/:deptId", element: <S><DeptMatrixPage /></S> },
         { path: "/access/matrix/:deptId",     element: <S><DeptMatrixPage /></S> },

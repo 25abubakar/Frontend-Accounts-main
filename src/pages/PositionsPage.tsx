@@ -10,6 +10,7 @@ import { orgTreeApi } from "../api/orgTreeApi";
 import type { VacancyDto, CreatePositionDto, UpdateVacancyDto, OrgNode } from "../types";
 import { containerVariants, itemVariants } from "../utils/orgGroupTreeDesign";
 import Can from "../components/shared/Can";
+import { FEATURE } from "../lib/featureKeys";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 const INPUT =
@@ -325,7 +326,7 @@ export default function PositionsPage() {
             {positions.length} position{positions.length !== 1 ? "s" : ""} across all branches
           </p>
         </div>
-        <Can permission="VACANCY_CREATE">
+        <Can permission={FEATURE.VACANCY_CREATE}>
           <button
             onClick={() => setAddOpen(true)}
             className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 py-2.5 text-sm font-black text-white shadow-md hover:shadow-lg transition-all"
