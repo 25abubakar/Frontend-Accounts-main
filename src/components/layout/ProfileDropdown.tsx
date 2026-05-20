@@ -65,6 +65,8 @@ export default function ProfileDropdown() {
       console.error("Logout failed", error);
     } finally {
       logout();
+      // Dispatch event so Sidebar clears its menu items immediately
+      window.dispatchEvent(new CustomEvent('user-logged-out'));
       navigate("/login", { replace: true });
     }
   };

@@ -75,21 +75,20 @@ export default function AccessGroupsPage() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // ── Update editTarget and viewTarget when groups change ────────────────
+  // ── Update editTarget / viewTarget when groups array refreshes ─────────
+  // Use a ref to avoid stale closure without adding targets as deps
   useEffect(() => {
-    if (editTarget) {
-      const updated = groups.find(g => g.groupId === editTarget.groupId);
-      if (updated) {
-        setEditTarget(updated);
-      }
-    }
-    if (viewTarget) {
-      const updated = groups.find(g => g.groupId === viewTarget.groupId);
-      if (updated) {
-        setViewTarget(updated);
-      }
-    }
-  }, [groups, editTarget, viewTarget]);
+    setEditTarget(prev => {
+      if (!prev) return prev;
+      const updated = groups.find(g => g.groupId === prev.groupId);
+      return updated ?? prev;
+    });
+    setViewTarget(prev => {
+      if (!prev) return prev;
+      const updated = groups.find(g => g.groupId === prev.groupId);
+      return updated ?? prev;
+    });
+  }, [groups]); // only re-run when groups changes, not when targets change
 
   // ── Seed from job titles ────────────────────────────────────────────────
   const seedFromJobTitles = async () => {

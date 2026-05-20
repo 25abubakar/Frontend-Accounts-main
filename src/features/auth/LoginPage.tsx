@@ -77,6 +77,9 @@ export default function LoginPage() {
         await refreshAccessibleData();
       } catch { /* non-critical — will use empty permissions */ }
 
+      // 6. Notify sidebar to refetch with new user's permissions
+      window.dispatchEvent(new CustomEvent('navigation-updated'));
+
       navigate("/dashboard", { replace: true });
 
     } catch (error: unknown) {

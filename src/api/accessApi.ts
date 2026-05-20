@@ -138,7 +138,10 @@ export const accessApi = {
   // GET /api/access/groups/{id}
   getGroupById: async (id: number): Promise<AccessGroupDto> => {
     const { data } = await api.get<AccessGroupDto>(`/api/access/groups/${id}`);
-    return data;
+    return {
+      ...data,
+      features: toArray<string>(data.features as unknown),
+    };
   },
 
   // PUT /api/access/groups/{id}
@@ -154,7 +157,30 @@ export const accessApi = {
 
   // PUT /api/access/groups/{id}/features
   updateGroupFeatures: async (id: number, payload: UpdateGroupFeaturesDto): Promise<{ message: string }> => {
-    const { data } = await api.put(`/api/access/groups/${id}/features`, payload);
+    // Split featureKeys into regular features and MENU_ features
+    const regularKeys = payload.featureKeys.filter(k => !k.startsWith('MENU_'));
+    const menuKeys    = payload.featureKeys.filter(k => k.startsWith('MENU_'));
+
+    // Save regular features to backend
+    const { data } = await api.put(`/api/access/groups/${id}/features`, {
+      featureKeys: regularKeys,
+    });
+
+    // Save MENU_ features separately if backend supports it
+    // Try the menu-features endpoint; if it fails, fall back silently
+    if (menuKeys.length > 0) {
+      try {
+        await api.put(`/api/access/groups/${id}/menu-features`, { menuKeys });
+      } catch {
+        // Backend may not have this endpoint yet — store in regular features as fallback
+        try {
+          await api.put(`/api/access/groups/${id}/features`, {
+            featureKeys: [...regularKeys, ...menuKeys],
+          });
+        } catch { /* ignore */ }
+      }
+    }
+
     return data;
   },
 

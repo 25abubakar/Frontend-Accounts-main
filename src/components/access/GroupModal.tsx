@@ -5,7 +5,7 @@
  * Handles name, description, and feature selection (grouped by module).
  * On edit: calls updateGroupFeatures and shows the backend sync message.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Shield, X, Loader2, Save, Check, ChevronDown } from "lucide-react";
 import { accessApi, type AccessGroupDto, type FeatureDto, type CreateGroupDto } from "../../api/accessApi";
@@ -25,6 +25,13 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
   const [sel, setSel]       = useState<Set<string>>(() => new Set(toArr<string>(group?.features)));
   const [saving, setSaving] = useState(false);
   const [err, setErr]       = useState<string | null>(null);
+
+  // ── Sync sel when group.features changes (e.g. after parent refreshes) ─
+  useEffect(() => {
+    if (group?.features) {
+      setSel(new Set(toArr<string>(group.features)));
+    }
+  }, [group?.features, group?.groupId]);
 
   const safe    = toArr<FeatureDto>(allFeatures);
   const grouped = useMemo(() => byModule(safe), [safe]);
@@ -58,23 +65,26 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
         };
         await accessApi.createGroup(payload);
       } else if (group) {
-        // For edit mode: Update name/description separately, then features
-        // Only update name/description if changed
+        // Step 1: Update name/description if changed
         if (name.trim() !== group.groupName || (desc.trim() || undefined) !== group.description) {
-          const basicPayload: CreateGroupDto = {
+          await accessApi.updateGroup(group.groupId, {
             groupName:   name.trim(),
             description: desc.trim() || undefined,
-            featureKeys: toArr<string>(group.features), // Keep existing features for now
-          };
-          await accessApi.updateGroup(group.groupId, basicPayload);
+            featureKeys: toArr<string>(group.features), // keep existing features
+          });
         }
-        
-        // Always update features (this is the main edit action)
-        const result = await accessApi.updateGroupFeatures(group.groupId, { 
-          featureKeys: Array.from(sel) 
-        });
-        // Backend returns { message: "Features updated and matrix synced." }
+
+        // Step 2: Always update features via the dedicated endpoint
+        const featureKeys = Array.from(sel);
+        const result = await accessApi.updateGroupFeatures(group.groupId, { featureKeys });
         syncMsg = result?.message;
+
+        // Step 3: Fetch the fresh group from backend to confirm what was saved
+        try {
+          const fresh = await accessApi.getGroupById(group.groupId);
+          // Update local sel to match what backend actually saved
+          setSel(new Set(toArr<string>(fresh.features)));
+        } catch { /* non-critical */ }
       }
 
       onSaved(syncMsg);

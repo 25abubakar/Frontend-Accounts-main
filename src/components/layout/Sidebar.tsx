@@ -3,7 +3,6 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronDown, Loader2, Plus, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { rbacApi, type SidebarItem } from '../../api/rbacApi';
-import { menuApi, type ApiMenuItem } from '../../api/menuApi';
 import AddMenuModal from './AddMenuModal';
 import { useAuthStore } from '../../store/authStore';
 
@@ -68,7 +67,6 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
   const [usingFallback, setUsingFallback]   = useState(false);
 
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
-  const userPermissions = useAuthStore(s => s.userPermissions);
   const userRoles       = useAuthStore(s => s.userRoles);
 
   // Admin/CEO bypass all menu filtering
@@ -76,70 +74,25 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
     ["admin","superadmin","super admin","ceo","dutyceo"].includes(r.toLowerCase())
   );
 
-  // Filter a SidebarItem by MENU_* permissions
-  // If userPermissions is empty → show all (not loaded yet or admin)
-  const canSeeItem = (item: SidebarItem): boolean => {
-    if (isAdmin) return true;
-    // If no MENU_ permissions exist at all → show everything (permissions not loaded)
-    const hasMenuPerms = userPermissions.some(p => p.startsWith("MENU_"));
-    if (!hasMenuPerms) return true;
-    // Check if this item's id is in the allowed MENU_ keys
-    const key = `MENU_${item.id}`;
-    return userPermissions.includes(key);
-  };
-
-  // Recursively filter items
-  const filterItems = (items: SidebarItem[]): SidebarItem[] => {
-    return items
-      .map(item => {
-        if (item.children && item.children.length > 0) {
-          const visibleChildren = filterItems(item.children);
-          // Parent visible if it has visible children OR it has its own permission
-          if (visibleChildren.length === 0 && !canSeeItem(item)) return null;
-          return { ...item, children: visibleChildren };
-        }
-        // Leaf item
-        if (!item.route) return null;
-        return canSeeItem(item) ? item : null;
-      })
-      .filter((i): i is SidebarItem => i !== null);
-  };
-
   const fetchMenu = useCallback(async () => {
     try {
       setLoading(true);
-      // Primary: RBAC-filtered sidebar (backend already filters by user permissions)
-      const items = await rbacApi.getSidebar();
-      if (items.length > 0) {
-        // Backend already filtered - just use what we get
+
+      // ── ONLY source: GET /api/rbac/sidebar ──────────────────────────────
+      // Backend filters by user permissions — trust it completely.
+      // Empty [] = user has no access = show nothing (correct behaviour).
+      // Only fall back to static nav if the network call itself throws.
+      try {
+        const items = await rbacApi.getSidebar();
+        // items may be [] for restricted users — that is correct, show nothing
         setMenuItems(items);
         setUsingFallback(false);
-      } else {
-        // Fallback: try the menu API
-        const menuData = await menuApi.getSidebarTree();
-        const arr = Array.isArray(menuData) ? menuData : [];
-        if (arr.length > 0) {
-          // Convert ApiMenuItem → SidebarItem shape
-          const convert = (m: ApiMenuItem): SidebarItem => ({
-            id: m.id,
-            title: m.title,
-            icon: m.icon ?? null,
-            route: m.route ?? null,
-            sortOrder: m.sortOrder,
-            children: (m.children ?? []).map(convert),
-          });
-          setMenuItems(arr.map(convert));
-          setUsingFallback(false);
-        } else {
-          // Only show static nav for admins
-          setMenuItems(isAdmin ? STATIC_NAV : []);
-          setUsingFallback(true);
-        }
+      } catch {
+        // Network / server error — show static nav for admins only
+        setMenuItems(isAdmin ? STATIC_NAV : []);
+        setUsingFallback(isAdmin);
       }
-    } catch {
-      // Only show static nav for admins on error
-      setMenuItems(isAdmin ? STATIC_NAV : []);
-      setUsingFallback(true);
+
     } finally {
       setLoading(false);
     }
@@ -147,15 +100,21 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
 
   useEffect(() => {
     if (isAuthenticated) fetchMenu();
+    
+    // Refetch sidebar when navigation is updated (e.g. admin adds a menu)
     window.addEventListener('navigation-updated', fetchMenu);
-    return () => window.removeEventListener('navigation-updated', fetchMenu);
+    
+    // Clear sidebar immediately on logout
+    const handleLogout = () => setMenuItems([]);
+    window.addEventListener('user-logged-out', handleLogout);
+    
+    return () => {
+      window.removeEventListener('navigation-updated', fetchMenu);
+      window.removeEventListener('user-logged-out', handleLogout);
+    };
   }, [fetchMenu, isAuthenticated]);
 
   const toggleMenu = (id: number) => setOpenMenuId(openMenuId === id ? null : id);
-
-  // Apply MENU permission filter ONLY if backend didn't filter
-  // Backend should already filter, so we trust what we get
-  const visibleItems = menuItems;
 
   const renderItem = (item: SidebarItem) => {
     // Skip items with no route and no children
@@ -259,8 +218,14 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
           <div className="flex justify-center items-center py-10">
             <Loader2 className="animate-spin text-slate-300" size={24} />
           </div>
+        ) : menuItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
+            <Shield size={32} className="text-slate-200 mb-3" />
+            <p className="text-xs font-bold text-slate-400">No menu access</p>
+            <p className="text-[10px] text-slate-300 mt-1">Contact your administrator</p>
+          </div>
         ) : (
-          visibleItems.map(item => renderItem(item))
+          menuItems.map(item => renderItem(item))
         )}
       </nav>
 

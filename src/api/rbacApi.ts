@@ -35,6 +35,7 @@ export interface EffectivePermission {
 export const rbacApi = {
 
   // GET /api/rbac/sidebar
+  // Backend filters menus by user's MENU_ permissions from their access group
   getSidebar: async (): Promise<SidebarItem[]> => {
     const { data } = await api.get('/api/rbac/sidebar');
     if (Array.isArray(data)) return data;
