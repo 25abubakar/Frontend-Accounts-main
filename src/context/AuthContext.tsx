@@ -1,7 +1,8 @@
 /**
  * AuthContext - Global authentication and permission state
  */
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { dataApi, type AccessibleDataResponse } from '../api/dataApi';
 
 interface AuthContextType {

@@ -11,7 +11,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ChevronRight, Check, X, Loader2, Users, Shield,
+  ChevronRight, Check, Loader2, Users, Shield,
   Eye, Plus, Pencil, Trash2, ChevronDown,
 } from "lucide-react";
 import type { FeatureDto } from "../../api/accessApi";
