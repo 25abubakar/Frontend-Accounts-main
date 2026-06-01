@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { rbacApi, type SidebarItem } from '../../api/rbacApi';
 import AddMenuModal from './AddMenuModal';
 import { useAuthStore } from '../../store/authStore';
+import { dedupeMenuTreeByRoute } from '../../lib/utils';
 
 import {
   LayoutDashboard, Users, Settings, Briefcase, LineChart, Shield, BarChart3, Circle,
@@ -85,11 +86,11 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
       try {
         const items = await rbacApi.getSidebar();
         // items may be [] for restricted users — that is correct, show nothing
-        setMenuItems(items);
+        setMenuItems(dedupeMenuTreeByRoute(items));
         setUsingFallback(false);
       } catch {
         // Network / server error — show static nav for admins only
-        setMenuItems(isAdmin ? STATIC_NAV : []);
+        setMenuItems(isAdmin ? dedupeMenuTreeByRoute(STATIC_NAV) : []);
         setUsingFallback(isAdmin);
       }
 

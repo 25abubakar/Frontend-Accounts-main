@@ -26,11 +26,12 @@ import {
 import { menuApi, type ApiMenuItem } from "../../api/menuApi";
 import { orgTreeApi } from "../../api/orgTreeApi";
 import type { OrgNode } from "../../types";
+import { dedupeMenuTreeByRoute } from "../../lib/utils";
 
 // ── Flatten menu tree → FeatureDto[] with module="Menu" ──────────────────
 function flattenMenuToFeatures(items: ApiMenuItem[], prefix = ""): FeatureDto[] {
   const result: FeatureDto[] = [];
-  for (const item of items) {
+  for (const item of dedupeMenuTreeByRoute(items)) {
     const key  = `MENU_${item.id}`;
     const name = prefix ? `${prefix} › ${item.title}` : item.title;
     result.push({ featureKey: key, featureName: name, module: "Menu" });

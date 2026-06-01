@@ -59,6 +59,7 @@ export interface FeatureLike {
   featureKey: string;
   featureName: string;
   module: string;
+  route?: string | null;
 }
 
 /** Groups an array of features by their module field */
@@ -87,7 +88,41 @@ export const LABEL_CLS = "text-xs font-bold uppercase text-slate-500 mb-1.5 bloc
 export interface ApiMenuItemLike {
   id: number;
   title: string;
+  route?: string | null;
+  sortOrder?: number;
   children?: ApiMenuItemLike[];
+}
+
+function normalizeRoute(route?: string | null): string | null {
+  if (!route) return null;
+  const clean = route.trim().toLowerCase().replace(/\/+$/, "");
+  return clean || "/";
+}
+
+export function dedupeMenuTreeByRoute<T extends ApiMenuItemLike>(items: T[]): T[] {
+  const seenRoutes = new Set<string>();
+
+  const walk = (nodes: T[]): T[] =>
+    toArr<T>(nodes)
+      .slice()
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .reduce<T[]>((acc, item) => {
+        const routeKey = normalizeRoute(item.route);
+        const children = walk((item.children ?? []) as T[]);
+
+        if (routeKey) {
+          if (seenRoutes.has(routeKey)) {
+            acc.push(...children);
+            return acc;
+          }
+          seenRoutes.add(routeKey);
+        }
+
+        acc.push({ ...item, children } as T);
+        return acc;
+      }, []);
+
+  return walk(items);
 }
 
 export function flattenMenuToFeatures(
@@ -95,10 +130,10 @@ export function flattenMenuToFeatures(
   prefix = ""
 ): FeatureLike[] {
   const result: FeatureLike[] = [];
-  for (const item of items) {
+  for (const item of dedupeMenuTreeByRoute(items)) {
     const key  = `MENU_${item.id}`;
     const name = prefix ? `${prefix} › ${item.title}` : item.title;
-    result.push({ featureKey: key, featureName: name, module: "Menu" });
+    result.push({ featureKey: key, featureName: name, module: "Menu", route: item.route });
     if (item.children?.length) {
       result.push(...flattenMenuToFeatures(item.children, item.title));
     }

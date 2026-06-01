@@ -27,15 +27,19 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
   const [err, setErr]       = useState<string | null>(null);
 
   // ── Sync sel when group.features changes (e.g. after parent refreshes) ─
-  useEffect(() => {
-    if (group?.features) {
-      setSel(new Set(toArr<string>(group.features)));
-    }
-  }, [group?.features, group?.groupId]);
-
-  const safe    = toArr<FeatureDto>(allFeatures);
+  const safe    = useMemo(() => toArr<FeatureDto>(allFeatures), [allFeatures]);
+  const visibleFeatureKeys = useMemo(() => new Set(safe.map(f => f.featureKey)), [safe]);
+  const cleanSelection = (keys: string[]) =>
+    keys.filter(k => visibleFeatureKeys.has(k) || !k.startsWith("MENU_"));
   const grouped = useMemo(() => byModule(safe), [safe]);
   const mods    = Object.keys(grouped);
+
+  // Keep only visible menu features so duplicate screen keys are dropped on save.
+  useEffect(() => {
+    if (group?.features) {
+      setSel(new Set(cleanSelection(toArr<string>(group.features))));
+    }
+  }, [group?.features, group?.groupId, visibleFeatureKeys]);
 
   const toggle = (k: string) =>
     setSel(p => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
@@ -61,7 +65,7 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
         const payload: CreateGroupDto = {
           groupName:   name.trim(),
           description: desc.trim() || undefined,
-          featureKeys: Array.from(sel),
+          featureKeys: cleanSelection(Array.from(sel)),
         };
         await accessApi.createGroup(payload);
       } else if (group) {
@@ -70,12 +74,12 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
           await accessApi.updateGroup(group.groupId, {
             groupName:   name.trim(),
             description: desc.trim() || undefined,
-            featureKeys: toArr<string>(group.features), // keep existing features
+            featureKeys: cleanSelection(toArr<string>(group.features)), // keep existing features
           });
         }
 
         // Step 2: Always update features via the dedicated endpoint
-        const featureKeys = Array.from(sel);
+        const featureKeys = cleanSelection(Array.from(sel));
         const result = await accessApi.updateGroupFeatures(group.groupId, { featureKeys });
         syncMsg = result?.message;
 
@@ -83,7 +87,7 @@ export default function GroupModal({ mode, group, allFeatures, onClose, onSaved 
         try {
           const fresh = await accessApi.getGroupById(group.groupId);
           // Update local sel to match what backend actually saved
-          setSel(new Set(toArr<string>(fresh.features)));
+          setSel(new Set(cleanSelection(toArr<string>(fresh.features))));
         } catch { /* non-critical */ }
       }
 
