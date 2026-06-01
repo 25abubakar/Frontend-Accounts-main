@@ -93,10 +93,30 @@ export interface ApiMenuItemLike {
   children?: ApiMenuItemLike[];
 }
 
+const ROUTE_ALIASES: Record<string, string> = {
+  "/organization": "/groups/hierarchy",
+  "/organization/new": "/groups/hierarchy",
+  "/groups/staff": "/hr/staff",
+  "/hr/persons": "/hr/staff",
+  "/hr/persons/register": "/hr/staff/register",
+  "/staff/register": "/hr/staff/register",
+  "/hr/persons/:id": "/hr/staff/:id",
+  "/hr/positions": "/hr/vacancies",
+  "/hr/vacancies/new": "/hr/vacancies",
+  "/positions": "/hr/vacancies",
+  "/positions/new": "/hr/vacancies",
+  "/access/groups/new": "/access/groups",
+  "/rbac/staff/:staffId": "/access/staff/:staffId",
+  "/communication/center": "/communication",
+  "/notes": "/communication",
+  "/menus": "/settings/menus",
+};
+
 function normalizeRoute(route?: string | null): string | null {
   if (!route) return null;
   const clean = route.trim().toLowerCase().replace(/\/+$/, "");
-  return clean || "/";
+  const normalized = clean || "/";
+  return ROUTE_ALIASES[normalized] ?? normalized;
 }
 
 export function dedupeMenuTreeByRoute<T extends ApiMenuItemLike>(items: T[]): T[] {
