@@ -3,7 +3,6 @@
  *
  * Slide-in side panel showing group details:
  *  - Stats (feature count, staff count)
- *  - SyncInfoBanner (auto-sync info + manual sync button)
  *  - Assigned staff list with remove action
  *  - Add staff search
  *  - Feature list grouped by module
@@ -18,7 +17,6 @@ import {
 import { accessApi, type AccessGroupDto, type FeatureDto } from "../../api/accessApi";
 import type { StaffDto } from "../../types";
 import { toArr, byModule, grad } from "./accessHelpers";
-import SyncInfoBanner from "./SyncInfoBanner";
 
 interface GroupPanelProps {
   group: AccessGroupDto;
@@ -144,11 +142,6 @@ export default function GroupPanel({ group, allFeatures, allStaff, onClose, onRe
               <p className="text-2xl font-black text-sky-600">{assigned.length}</p>
               <p className="text-[10px] font-bold uppercase tracking-widest text-sky-400 mt-0.5">Staff</p>
             </div>
-          </div>
-
-          {/* Sync info banner */}
-          <div className="px-5 pt-4">
-            <SyncInfoBanner groupId={group.groupId} onSynced={onRefresh} />
           </div>
 
           {/* Assigned staff */}
