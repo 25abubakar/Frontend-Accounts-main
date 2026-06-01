@@ -242,7 +242,7 @@ function GroupModal({
                 const mf = grouped[mod] ?? [];
                 const modAllowed = mf.filter(f => featureStates[f.featureKey] === "ALLOW").length;
                 const modDenied  = mf.filter(f => featureStates[f.featureKey] === "DENY").length;
-                const allAllow   = mf.every(f => featureStates[f.featureKey] === "ALLOW");
+                // const allAllow   = mf.every(f => featureStates[f.featureKey] === "ALLOW");
 
                 return (
                   <div key={mod} className="rounded-2xl border border-slate-100 bg-slate-50 overflow-hidden">
@@ -517,7 +517,6 @@ function DeptTab() {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState<OrgNode[]>([]);
   const [selectedDept, setSelectedDept] = useState("");
-  const [deptName, setDeptName] = useState("");
   const [matrixData, setMatrixData] = useState<MatrixResponse | null>(null);
   const [localPerms, setLocalPerms]       = useState<TriPermMap>({});
   const [originalPerms, setOriginalPerms] = useState<TriPermMap>({});
@@ -538,11 +537,6 @@ function DeptTab() {
       if (u.length > 0) setSelectedDept(String(u[0].id));
     });
   }, []);
-
-  useEffect(() => {
-    const f = departments.find(d => String(d.id) === selectedDept);
-    setDeptName(f?.name ?? "");
-  }, [selectedDept, departments]);
 
   const loadMatrix = useCallback(async () => {
     if (!selectedDept) return;

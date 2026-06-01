@@ -18,11 +18,11 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, AlertCircle, Save, RotateCcw, CheckSquare, Square,
-  Shield, Layers, Check, X, Search, ChevronDown, Plus,
+  Shield, Layers, Check, X, Search, Plus,
   Users, ExternalLink, LayoutGrid,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { accessApi, type AccessGroupDto, type FeatureDto, type CreateGroupDto } from "../../api/accessApi";
+import { accessApi, type AccessGroupDto, type FeatureDto } from "../../api/accessApi";
 import { menuApi, type ApiMenuItem } from "../../api/menuApi";
 import { flattenMenuToFeatures } from "../../lib/utils";
 

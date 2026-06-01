@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import ProtectedRoute  from "./components/shared/ProtectedRoute";
 import DashboardLayout from "./layouts/DashboardLayout";
 import { AuthProvider } from "./context/AuthContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 // ── Eager (small, always needed) ─────────────────────────────────────────
 import LoginPage        from "./features/auth/LoginPage";
@@ -28,6 +29,9 @@ const AccessGroupsPage    = lazy(() => import("./pages/access/AccessGroupsPage")
 const DeptMatrixPage      = lazy(() => import("./pages/access/DeptMatrixPage"));
 const StaffPermissionsPage = lazy(() => import("./pages/access/StaffPermissionsPage"));
 const GroupMatrixPage     = lazy(() => import("./pages/access/GroupMatrixPage"));
+
+// Communication
+const CommunicationCenterPage = lazy(() => import("./pages/communication/CommunicationCenterPage"));
 
 // Settings
 const MenuManager         = lazy(() => import("./pages/settings/MenuManager"));
@@ -93,6 +97,11 @@ const router = createBrowserRouter([
         { path: "/access/matrix/:deptId",     element: <S><DeptMatrixPage /></S> },
         { path: "/access/staff/:staffId",     element: <S><StaffPermissionsPage /></S> },
         { path: "/rbac/staff/:staffId",       element: <S><StaffPermissionsPage /></S> },
+
+        // ── Communication ────────────────────────────────────────────────
+        { path: "/communication",        element: <ErrorBoundary><S><CommunicationCenterPage /></S></ErrorBoundary> },
+        { path: "/communication/center", element: <ErrorBoundary><S><CommunicationCenterPage /></S></ErrorBoundary> },
+        { path: "/notes",                element: <ErrorBoundary><S><CommunicationCenterPage /></S></ErrorBoundary> },
 
         // ── Settings ─────────────────────────────────────────────────────
         { path: "/settings",              element: <Navigate to="/settings/general" replace /> },

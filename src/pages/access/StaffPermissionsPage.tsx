@@ -8,7 +8,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Shield, Loader2, AlertCircle, Layers, Check, X,
-  Save, Users, RefreshCw, UserPlus, UserMinus,
+  Save, RefreshCw, UserPlus, UserMinus,
   Lock, Star, ShieldCheck, CheckSquare, Square, Trash2,
 } from "lucide-react";
 import { accessApi, type FeatureDto, type AccessGroupDto, type StaffGroupDto } from "../../api/accessApi";

@@ -1,4 +1,6 @@
 import api from './axios';
+import { httpClient } from './httpClient';
+import type { MenuDto } from '../models/menuModels';
 
 export interface ApiMenuItem {
   id: number;
@@ -26,6 +28,8 @@ export const menuApi = {
     const data = response.data;
     return Array.isArray(data) ? data : data?.$values || data?.data || [];
   },
+
+  getActive: () => httpClient.get<MenuDto[]>("/api/app-menu-definitions/active"),
 
   createMenu: async (data: CreateMenuDto): Promise<ApiMenuItem> => {
     const response = await api.post<ApiMenuItem>('/api/Menus', data);

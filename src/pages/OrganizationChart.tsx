@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Globe2, Building2, MapPin, Briefcase, 
-  Loader2, Network, Plus, Minus
+  Network, Plus, Minus
 } from "lucide-react";
 import { orgTreeApi } from "../api/orgTreeApi";
 import { positionApi } from "../api/positionApi"; 

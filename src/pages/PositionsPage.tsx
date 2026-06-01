@@ -11,8 +11,6 @@ import type { VacancyDto, CreatePositionDto, UpdateVacancyDto, OrgNode } from ".
 import { containerVariants, itemVariants } from "../utils/orgGroupTreeDesign";
 import Can from "../components/shared/Can";
 import { FEATURE } from "../lib/featureKeys";
-import { useAuth } from "../context/AuthContext";
-import { PERMISSIONS } from "../lib/permissions";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 const INPUT =

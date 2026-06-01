@@ -1,3 +1,4 @@
+
 /**
  * AuthContext - Global authentication and permission state
  */

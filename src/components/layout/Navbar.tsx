@@ -1,8 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-// 🌟 FIX: Imported Info and Lock icons to match your design
-import { Palette, Check, Menu, X, Info, Lock } from "lucide-react";
-import ProfileDropdown from "./ProfileDropdown"; 
-import NotesDrawer from "./NotesDrawer"; 
+import { Palette, Check, Menu, X, Info, Lock, Bell } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import ProfileDropdown from "./ProfileDropdown";
+import GlobalNotesDrawer from "./GlobalNotesDrawer";
+import UserNotes from "./UserNotes";
+import { useNotesStore } from "../../store/notesStore";
+import { appNotesApi } from "../../api/appNotesApi";
 
 type ThemeOption = { name: string; bg: string; dot: string; text: string };
 
@@ -20,13 +23,28 @@ interface NavbarProps {
 }
 
 export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: NavbarProps) {
+  const navigate = useNavigate();
   const [showTheme, setShowTheme] = useState(false);
-  
-  // Drawer State Management
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [drawerSide, setDrawerSide] = useState<"left" | "right">("right");
-
+  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
+  const [isNotesOpen, setIsNotesOpen] = useState(false);
   const themeRef = useRef<HTMLDivElement>(null);
+
+  const { unreadCount, setUnreadCount } = useNotesStore();
+
+  // Poll unread count every 60 seconds
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const count = await appNotesApi.getUnreadCount();
+        setUnreadCount(typeof count === "number" ? count : 0);
+      } catch {
+        // silent — don't break navbar if API is down
+      }
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 60_000);
+    return () => clearInterval(interval);
+  }, [setUnreadCount]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -37,16 +55,6 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const handleInstructionsClick = () => {
-    setDrawerSide("left");  
-    setIsDrawerOpen(true);
-  };
-
-  const handleNotesClick = () => {
-    setDrawerSide("right"); 
-    setIsDrawerOpen(true);
-  };
 
   return (
     <>
@@ -81,9 +89,9 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
         {/* Right — actions */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
 
-          {/* 🌟 UPDATED: Instructions Button */}
+          {/* Instructions Button → opens left drawer */}
           <button
-            onClick={handleInstructionsClick}
+            onClick={() => setIsInstructionsOpen(true)}
             aria-label="Open Instructions"
             className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 active:scale-95 transition-all shadow-sm"
           >
@@ -91,14 +99,29 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
             <span className="text-xs font-bold text-white tracking-wide">Instructions</span>
           </button>
 
-          {/* 🌟 UPDATED: My Notes Button */}
+          {/* My Notes Button → opens right drawer */}
           <button
-            onClick={handleNotesClick}
+            onClick={() => setIsNotesOpen(true)}
             aria-label="Open Notes"
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 active:scale-95 transition-all shadow-sm"
           >
             <Lock size={15} strokeWidth={2.5} className="text-white" />
             <span className="hidden sm:block text-xs font-bold text-white tracking-wide">My Notes</span>
+          </button>
+
+          {/* Notification Bell → navigates to Communication Center */}
+          <button
+            onClick={() => navigate("/communication")}
+            aria-label="Notifications"
+            title="Communication Center"
+            className="relative p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 active:scale-90 transition-all shadow-sm"
+          >
+            <Bell size={17} className="text-white" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white ring-2 ring-current">
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
           </button>
 
           {/* Theme picker */}
@@ -140,14 +163,18 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
           <div className="h-6 w-px bg-white/20 mx-0.5" />
 
           <ProfileDropdown />
-          
         </div>
       </header>
 
-      <NotesDrawer 
-        isOpen={isDrawerOpen} 
-        onClose={() => setIsDrawerOpen(false)} 
-        side={drawerSide}
+      {/* Drawers */}
+      <GlobalNotesDrawer
+        isOpen={isInstructionsOpen}
+        onClose={() => setIsInstructionsOpen(false)}
+      />
+
+      <UserNotes
+        isOpen={isNotesOpen}
+        onClose={() => setIsNotesOpen(false)}
       />
     </>
   );

@@ -117,12 +117,15 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
   const toggleMenu = (id: number) => setOpenMenuId(openMenuId === id ? null : id);
 
   const renderItem = (item: SidebarItem) => {
-    // Skip items with no route and no children
+    // Skip items with no route and no children (orphaned DB entries)
     if (!item.route && (!item.children || item.children.length === 0)) return null;
 
-    const isOpen     = openMenuId === item.id;
+    const isOpen      = openMenuId === item.id;
     const hasChildren = item.children && item.children.length > 0;
-    const Icon       = getIcon(item.icon);
+    const Icon        = getIcon(item.icon);
+
+    // If item has no route but also no children, skip it
+    const effectiveRoute = item.route || null;
 
     return (
       <div key={item.id} className="flex flex-col">
@@ -141,8 +144,8 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
               <ChevronDown size={14} strokeWidth={2.5} />
             </motion.div>
           </button>
-        ) : (
-          <NavLink to={item.route!} onClick={onNavClick}
+        ) : effectiveRoute ? (
+          <NavLink to={effectiveRoute} onClick={onNavClick}
             className={({ isActive }) =>
               `w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200 group ${
                 isActive ? `${themeColor} text-white shadow-md ring-1 ring-black/5`
@@ -156,6 +159,13 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
               </div>
             )}
           </NavLink>
+        ) : (
+          // No route, no children — render as disabled label (admin can delete it)
+          <div className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-semibold rounded-xl text-slate-300 cursor-not-allowed select-none">
+            <Icon size={17} className="text-slate-200" />
+            <span>{item.title}</span>
+            <span className="ml-auto text-[9px] font-bold uppercase tracking-wider text-slate-200">no route</span>
+          </div>
         )}
 
         <AnimatePresence initial={false}>

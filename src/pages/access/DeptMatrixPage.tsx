@@ -53,6 +53,7 @@ function rowKey(r: MatrixStaffRow): string {
 }
 
 function groupByRole(staff: MatrixStaffRow[]): RoleGroup[] {
+
   const map = new Map<string, MatrixStaffRow[]>();
   for (const r of staff) {
     const title = r.jobTitle ?? "Unassigned";

@@ -7,7 +7,7 @@ import { staffApi } from "../api/staffApi";
 import { personsApi, type PersonDto } from "../api/personsApi";
 import type { StaffDto } from "../types";
 import { useAuth } from "../context/AuthContext";
-import { PERMISSIONS } from "../lib/permissions";
+
 
 import { StaffTable, PersonsTable } from "../components/staff/StaffTables";
 import { FireModal, TransferModal, DeletePersonModal, ViewPersonModal, EditStaffModal, EditPersonModal } from "../components/staff/StaffModals";
@@ -18,7 +18,7 @@ type MainTab = "staff" | "persons";
 
 export default function StaffMembersPage() {
   const navigate = useNavigate();
-  const { accessibleData, hasPermission, hasAnyPermission } = useAuth();
+  const { accessibleData } = useAuth();
 
   const [staffList, setStaffList] = useState<StaffDto[]>([]);
   const [personsList, setPersonsList] = useState<PersonDto[]>([]);
