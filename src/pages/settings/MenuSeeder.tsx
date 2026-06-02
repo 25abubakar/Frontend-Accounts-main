@@ -1,62 +1,68 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle2, AlertCircle, Zap, Trash2 } from "lucide-react";
+import {
+  Loader2, CheckCircle2, AlertCircle, Zap, Trash2,
+  Database, ChevronRight, Info,
+} from "lucide-react";
 import { menuApi } from "../../api/menuApi";
 import { useAuthStore } from "../../store/authStore";
 import NoAccessMessage from "../../components/shared/NoAccessMessage";
 
-// ── The full navigation structure to seed ────────────────────────────────
-const MENU_STRUCTURE = [
-  { title: "Overview",         icon: "LayoutDashboard", route: "/dashboard",        sortOrder: 1,  parent: null },
-  { title: "Accounts & Groups",icon: "Building2",       route: null,                sortOrder: 2,  parent: null },
-  { title: "HR Management",    icon: "Users",           route: null,                sortOrder: 3,  parent: null },
-  { title: "Access Control",   icon: "Shield",          route: null,                sortOrder: 4,  parent: null },
-  { title: "Platform Settings",icon: "Settings",        route: null,                sortOrder: 5,  parent: null },
+// ── Permission map — mirrors backend SeedMenus logic ────────────────────
+// Used only for the preview table; actual seeding happens on the backend.
+const MENU_PREVIEW = [
+  // ── Root items ──────────────────────────────────────────────────────────
+  { title: "Overview",          route: "/dashboard",           parent: null,               permission: "(public — all users)",          icon: "LayoutDashboard", sortOrder: 1 },
+  { title: "Accounts & Groups", route: null,                   parent: null,               permission: "",                               icon: "Building2",       sortOrder: 2 },
+  { title: "HR Management",     route: null,                   parent: null,               permission: "",                               icon: "Users",           sortOrder: 3 },
+  { title: "Access Control",    route: null,                   parent: null,               permission: "",                               icon: "Shield",          sortOrder: 4 },
+  { title: "Platform Settings", route: null,                   parent: null,               permission: "",                               icon: "Settings",        sortOrder: 5 },
 
-  // Accounts & Groups children
-  { title: "Companies & Entities", icon: "Building2",  route: "/groups/companies",  sortOrder: 1, parent: "Accounts & Groups" },
-  { title: "Organization Chart",   icon: "Network",    route: "/organization",      sortOrder: 2, parent: "Accounts & Groups" },
-  { title: "Partner Portals",      icon: "Globe2",     route: "/groups/partners",   sortOrder: 3, parent: "Accounts & Groups" },
+  // ── Accounts & Groups children ──────────────────────────────────────────
+  { title: "Companies & Entities", route: "/groups/companies",  parent: "Accounts & Groups", permission: "DEPT_VIEW",                   icon: "Building2",  sortOrder: 1 },
+  { title: "Organization Chart",   route: "/organization",      parent: "Accounts & Groups", permission: "DEPT_VIEW",                   icon: "Network",    sortOrder: 2 },
+  { title: "Partner Portals",      route: "/groups/partners",   parent: "Accounts & Groups", permission: "DEPT_VIEW",                   icon: "Globe2",     sortOrder: 3 },
 
-  // HR Management children
-  { title: "Staff & Persons",  icon: "Users",          route: "/hr/staff",          sortOrder: 1, parent: "HR Management" },
-  { title: "Register Person",  icon: "UserCheck",      route: "/hr/staff/register", sortOrder: 2, parent: "HR Management" },
-  { title: "Positions",        icon: "Briefcase",      route: "/hr/vacancies",      sortOrder: 3, parent: "HR Management" },
-  { title: "Reports",          icon: "BarChart3",      route: "/hr/reports",        sortOrder: 4, parent: "HR Management" },
+  // ── HR Management children ───────────────────────────────────────────────
+  { title: "Staff & Persons",  route: "/hr/staff",          parent: "HR Management", permission: "EMPLOYEE_VIEW or PERSON_VIEW",   icon: "Users",      sortOrder: 1 },
+  { title: "Register Person",  route: "/hr/staff/register", parent: "HR Management", permission: "PERSON_REGISTER",                icon: "UserCheck",  sortOrder: 2 },
+  { title: "Positions",        route: "/hr/vacancies",      parent: "HR Management", permission: "VACANCY_VIEW",                   icon: "Briefcase",  sortOrder: 3 },
+  { title: "Reports",          route: "/hr/reports",        parent: "HR Management", permission: "EMPLOYEE_VIEW",                  icon: "BarChart3",  sortOrder: 4 },
 
-  // Access Control children
-  { title: "Access Groups",    icon: "Layers",  route: "/access/groups",        sortOrder: 1, parent: "Access Control" },
-  { title: "Group Matrix",     icon: "Shield",  route: "/access/groups/matrix", sortOrder: 2, parent: "Access Control" },
-  { title: "Dept Permissions", icon: "Shield",  route: "/access/dept",          sortOrder: 3, parent: "Access Control" },
+  // ── Access Control children ──────────────────────────────────────────────
+  { title: "Admin Access",     route: "/access/admin",          parent: "Access Control", permission: "ACCESS_GROUP_VIEW",           icon: "Shield",     sortOrder: 1 },
+  { title: "Access Groups",    route: "/access/groups",         parent: "Access Control", permission: "ACCESS_GROUP_VIEW",           icon: "Layers",     sortOrder: 2 },
+  { title: "Group Matrix",     route: "/access/groups/matrix",  parent: "Access Control", permission: "ACCESS_GROUP_VIEW",           icon: "Shield",     sortOrder: 3 },
+  { title: "Dept Permissions", route: "/access/dept",           parent: "Access Control", permission: "ACCESS_GROUP_VIEW",           icon: "Shield",     sortOrder: 4 },
 
-  // Platform Settings children
-  { title: "General",          icon: "Settings",       route: "/settings/general",  sortOrder: 1, parent: "Platform Settings" },
-  { title: "Branding",         icon: "Palette",        route: "/settings/branding", sortOrder: 2, parent: "Platform Settings" },
-  { title: "Email Templates",  icon: "Mail",           route: "/settings/emails",   sortOrder: 3, parent: "Platform Settings" },
-  { title: "Integrations",     icon: "Link",           route: "/settings/integrations", sortOrder: 4, parent: "Platform Settings" },
-  { title: "Menu Manager",     icon: "LayoutGrid",     route: "/settings/menus",    sortOrder: 5, parent: "Platform Settings" },
+  // ── Platform Settings children ───────────────────────────────────────────
+  { title: "General",        route: "/settings/general",      parent: "Platform Settings", permission: "ACCESS_GROUP_VIEW",          icon: "Settings",   sortOrder: 1 },
+  { title: "Branding",       route: "/settings/branding",     parent: "Platform Settings", permission: "ACCESS_GROUP_VIEW",          icon: "Palette",    sortOrder: 2 },
+  { title: "Email Templates",route: "/settings/emails",       parent: "Platform Settings", permission: "ACCESS_GROUP_VIEW",          icon: "Mail",       sortOrder: 3 },
+  { title: "Integrations",   route: "/settings/integrations", parent: "Platform Settings", permission: "ACCESS_GROUP_VIEW",          icon: "Link",       sortOrder: 4 },
+  { title: "Menu Manager",   route: "/settings/menus",        parent: "Platform Settings", permission: "ACCESS_GROUP_EDIT",          icon: "LayoutGrid", sortOrder: 5 },
+  { title: "Seed Menus",     route: "/settings/seed-menus",   parent: "Platform Settings", permission: "ACCESS_GROUP_EDIT",          icon: "Zap",        sortOrder: 6 },
 ];
 
 type SeedStatus = "idle" | "running" | "done" | "error";
 
 interface SeedLog {
   title: string;
-  status: "ok" | "error";
+  status: "ok" | "warn" | "error";
   message?: string;
 }
 
 export default function MenuSeeder() {
-  const [status, setStatus] = useState<SeedStatus>("idle");
-  const [logs, setLogs] = useState<SeedLog[]>([]);
+  const [status, setStatus]   = useState<SeedStatus>("idle");
+  const [logs, setLogs]       = useState<SeedLog[]>([]);
   const [clearing, setClearing] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  // Check if user is admin
   const userRoles = useAuthStore(s => s.userRoles);
   const isAdmin = userRoles.some(r =>
     ["admin", "superadmin", "super admin", "ceo", "dutyceo"].includes(r.toLowerCase())
   );
 
-  // If not admin, show access denied
   if (!isAdmin) {
     return (
       <NoAccessMessage
@@ -68,55 +74,76 @@ export default function MenuSeeder() {
 
   const addLog = (log: SeedLog) => setLogs(prev => [...prev, log]);
 
+  // ── Primary path: single backend seed endpoint ───────────────────────────
   const handleSeed = async () => {
     setStatus("running");
     setLogs([]);
 
     try {
-      // Step 1: Get existing menus to avoid duplicates
-      const existing = await menuApi.getSidebarTree();
-      const existingTitles = new Set<string>();
-      const flatExisting = (items: typeof existing) => {
+      const result = await menuApi.seedMenus();
+
+      if (result.seeded !== undefined) {
+        addLog({ title: "Seed complete", status: "ok",  message: `${result.seeded} created, ${result.skipped} skipped, ${result.errors} errors` });
+        if (result.message) addLog({ title: "Server", status: "ok", message: result.message });
+      } else {
+        addLog({ title: "Seed complete", status: "ok", message: "Backend seeded successfully" });
+      }
+
+      window.dispatchEvent(new Event("navigation-updated"));
+      setStatus("done");
+
+    } catch (err: unknown) {
+      // Fallback: manual item-by-item creation (for backends that don't yet have /api/menus/seed)
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr?.response?.status === 404) {
+        addLog({ title: "Notice", status: "warn", message: "/api/menus/seed not found — falling back to manual creation" });
+        await seedManually();
+      } else {
+        addLog({ title: "Error", status: "error", message: err instanceof Error ? err.message : "Seed failed" });
+        setStatus("error");
+      }
+    }
+  };
+
+  // ── Fallback: create menus one-by-one via /api/Menus ────────────────────
+  const seedManually = async () => {
+    try {
+      const existing   = await menuApi.getSidebarTree();
+      const seenTitles = new Set<string>();
+      const flatten    = (items: typeof existing) => {
         items.forEach(i => {
-          existingTitles.add(i.title.toLowerCase());
-          if (i.children) flatExisting(i.children);
+          seenTitles.add(i.title.toLowerCase());
+          if (i.children) flatten(i.children);
         });
       };
-      flatExisting(existing);
+      flatten(existing);
 
-      // Step 2: Create root items first, collect their IDs
       const idMap: Record<string, number> = {};
 
-      const roots = MENU_STRUCTURE.filter(m => m.parent === null);
-      for (const item of roots) {
-        if (existingTitles.has(item.title.toLowerCase())) {
-          // Find existing ID
+      // Create roots first
+      for (const item of MENU_PREVIEW.filter(m => m.parent === null)) {
+        if (seenTitles.has(item.title.toLowerCase())) {
           const found = existing.find(e => e.title.toLowerCase() === item.title.toLowerCase());
           if (found) idMap[item.title] = found.id;
-          addLog({ title: item.title, status: "ok", message: "Already exists — skipped" });
+          addLog({ title: item.title, status: "warn", message: "Already exists — skipped" });
           continue;
         }
         try {
           const created = await menuApi.createMenu({
-            title: item.title,
-            icon: item.icon,
-            route: item.route,
-            parentId: null,
-            sortOrder: item.sortOrder,
+            title: item.title, icon: item.icon, route: item.route, parentId: null, sortOrder: item.sortOrder,
           });
           idMap[item.title] = created.id;
           addLog({ title: item.title, status: "ok", message: "Created" });
         } catch (e: unknown) {
-          const err = e as { response?: { data?: { message?: string } } };
-          addLog({ title: item.title, status: "error", message: err.response?.data?.message ?? "Failed" });
+          const axErr = e as { response?: { data?: { message?: string } } };
+          addLog({ title: item.title, status: "error", message: axErr.response?.data?.message ?? "Failed" });
         }
       }
 
-      // Step 3: Create children
-      const children = MENU_STRUCTURE.filter(m => m.parent !== null);
-      for (const item of children) {
-        if (existingTitles.has(item.title.toLowerCase())) {
-          addLog({ title: item.title, status: "ok", message: "Already exists — skipped" });
+      // Create children
+      for (const item of MENU_PREVIEW.filter(m => m.parent !== null)) {
+        if (seenTitles.has(item.title.toLowerCase())) {
+          addLog({ title: item.title, status: "warn", message: "Already exists — skipped" });
           continue;
         }
         const parentId = item.parent ? idMap[item.parent] : null;
@@ -126,20 +153,15 @@ export default function MenuSeeder() {
         }
         try {
           await menuApi.createMenu({
-            title: item.title,
-            icon: item.icon,
-            route: item.route,
-            parentId,
-            sortOrder: item.sortOrder,
+            title: item.title, icon: item.icon, route: item.route, parentId, sortOrder: item.sortOrder,
           });
-          addLog({ title: item.title, status: "ok", message: `Created under "${item.parent}"` });
+          addLog({ title: item.title, status: "ok", message: `Under "${item.parent}"` });
         } catch (e: unknown) {
-          const err = e as { response?: { data?: { message?: string } } };
-          addLog({ title: item.title, status: "error", message: err.response?.data?.message ?? "Failed" });
+          const axErr = e as { response?: { data?: { message?: string } } };
+          addLog({ title: item.title, status: "error", message: axErr.response?.data?.message ?? "Failed" });
         }
       }
 
-      // Notify sidebar to refresh
       window.dispatchEvent(new Event("navigation-updated"));
       setStatus("done");
     } catch {
@@ -147,18 +169,15 @@ export default function MenuSeeder() {
     }
   };
 
+  // ── Clear all menus ──────────────────────────────────────────────────────
   const handleClearAll = async () => {
-    if (!window.confirm("This will delete ALL menu items. Are you sure?")) return;
+    if (!window.confirm("This will delete ALL menu items from the database. Are you sure?")) return;
     try {
       setClearing(true);
       const existing = await menuApi.getSidebarTree();
-
-      // Delete children first, then parents
       const deleteAll = async (items: typeof existing) => {
         for (const item of items) {
-          if (item.children && item.children.length > 0) {
-            await deleteAll(item.children);
-          }
+          if (item.children?.length) await deleteAll(item.children);
           try { await menuApi.deleteMenu(item.id); } catch { /* ignore */ }
         }
       };
@@ -173,109 +192,145 @@ export default function MenuSeeder() {
     }
   };
 
+  const roots = MENU_PREVIEW.filter(m => m.parent === null);
+
   return (
     <div className="h-full w-full overflow-y-auto bg-[#F8FAFC] p-5 lg:p-8 custom-scrollbar">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-6">
 
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
-              <Zap size={20} className="text-amber-500" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-800">Menu Seeder</h1>
+        {/* ── Header ── */}
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 border border-amber-100">
+            <Database size={22} className="text-amber-500" />
           </div>
-          <p className="text-sm font-medium text-slate-400 ml-13">
-            One-click setup — seeds all navigation items into the database.
-            Run this once after a fresh install.
-          </p>
-        </div>
-
-        {/* Preview of what will be seeded */}
-        <div className="mb-6 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
-            <p className="text-xs font-black uppercase tracking-widest text-slate-500">
-              Navigation Structure ({MENU_STRUCTURE.length} items)
+          <div>
+            <h1 className="text-2xl font-black tracking-tight text-slate-800">Menu Seeder</h1>
+            <p className="mt-1 text-sm font-medium text-slate-400">
+              Populates the database with the full navigation structure, permission keys, and parent–child hierarchy.
+              Run once after a fresh install.
             </p>
           </div>
-          <div className="p-4 space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
-            {MENU_STRUCTURE.filter(m => m.parent === null).map(root => (
-              <div key={root.title}>
-                <div className="flex items-center gap-2 py-1.5 px-2 rounded-lg">
-                  <span className="text-sm font-black text-slate-700">{root.title}</span>
-                  {root.route && (
-                    <span className="text-[10px] font-mono text-slate-400">{root.route}</span>
-                  )}
-                </div>
-                {MENU_STRUCTURE.filter(m => m.parent === root.title).map(child => (
-                  <div key={child.title} className="flex items-center gap-2 py-1 px-2 ml-5 rounded-lg">
-                    <span className="text-slate-300">└</span>
-                    <span className="text-xs font-semibold text-slate-600">{child.title}</span>
-                    <span className="text-[10px] font-mono text-slate-400">{child.route}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+        </div>
+
+        {/* ── How it works ── */}
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3.5 flex gap-3">
+          <Info size={16} className="text-blue-500 shrink-0 mt-0.5" />
+          <div className="text-xs font-semibold text-blue-700 space-y-1">
+            <p><span className="font-black">Step 1:</span> Calls <code className="bg-blue-100 px-1 rounded font-mono">POST /api/menus/seed</code> — backend saves all menus with permission keys.</p>
+            <p><span className="font-black">Step 2:</span> Frontend calls <code className="bg-blue-100 px-1 rounded font-mono">GET /api/rbac/sidebar</code> — backend returns only menus the user can see.</p>
+            <p><span className="font-black">Result:</span> SuperAdmin sees all menus · Staff see only their permitted items.</p>
           </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex gap-3 mb-6">
+        {/* ── Preview table ── */}
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+              Navigation Structure — {MENU_PREVIEW.length} items
+            </p>
+            <span className="text-[10px] font-bold text-slate-400">{roots.length} parent groups</span>
+          </div>
+
+          <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto custom-scrollbar">
+            {roots.map(root => {
+              const children = MENU_PREVIEW.filter(m => m.parent === root.title);
+              const isOpen   = expanded === root.title;
+              return (
+                <div key={root.title}>
+                  {/* Parent row */}
+                  <button
+                    onClick={() => setExpanded(isOpen ? null : root.title)}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <ChevronRight size={13} className={`text-slate-400 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                    <span className="text-sm font-black text-slate-800 flex-1">{root.title}</span>
+                    {root.route && <span className="text-[10px] font-mono text-slate-400">{root.route}</span>}
+                    {children.length > 0 && (
+                      <span className="text-[10px] font-bold text-slate-400">{children.length} children</span>
+                    )}
+                  </button>
+
+                  {/* Children rows */}
+                  {isOpen && children.map(child => (
+                    <div key={child.title}
+                      className="flex items-center gap-3 px-5 py-2.5 pl-12 bg-slate-50/60 border-t border-slate-100">
+                      <span className="text-slate-300 text-sm">└</span>
+                      <span className="text-xs font-semibold text-slate-700 flex-1">{child.title}</span>
+                      <span className="text-[10px] font-mono text-slate-400 mr-3">{child.route}</span>
+                      {child.permission && (
+                        <span className="rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
+                          {child.permission}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Actions ── */}
+        <div className="flex gap-3">
           <button
             onClick={handleSeed}
             disabled={status === "running" || clearing}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-3 text-sm font-black text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-3.5 text-sm font-black text-white shadow-md hover:shadow-lg transition-all disabled:opacity-50"
           >
             {status === "running"
               ? <><Loader2 size={16} className="animate-spin" /> Seeding…</>
-              : <><Zap size={16} /> Seed Navigation</>
+              : <><Zap size={16} /> Seed Navigation to Database</>
             }
           </button>
           <button
             onClick={handleClearAll}
             disabled={status === "running" || clearing}
-            className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3 text-sm font-bold text-red-600 hover:bg-red-100 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-5 py-3.5 text-sm font-bold text-red-600 hover:bg-red-100 transition-all disabled:opacity-50"
           >
             {clearing ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
             Clear All
           </button>
         </div>
 
-        {/* Status banner */}
+        {/* ── Status banners ── */}
         {status === "done" && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="mb-5 flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-100 p-4 text-sm font-bold text-emerald-700">
-            <CheckCircle2 size={16} /> Navigation seeded successfully! Sidebar has been refreshed.
+            className="flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-emerald-700">
+            <CheckCircle2 size={18} />
+            Navigation seeded — sidebar will refresh automatically.
           </motion.div>
         )}
         {status === "error" && (
-          <div className="mb-5 flex items-center gap-2 rounded-xl bg-red-50 border border-red-100 p-4 text-sm font-bold text-red-600">
-            <AlertCircle size={16} /> Something went wrong. Check the log below.
+          <div className="flex items-center gap-3 rounded-xl bg-red-50 border border-red-200 p-4 text-sm font-bold text-red-600">
+            <AlertCircle size={18} />
+            Seed failed. Ensure the backend is running and the endpoint exists. See log below.
           </div>
         )}
 
-        {/* Seed log */}
+        {/* ── Seed log ── */}
         {logs.length > 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <p className="text-xs font-black uppercase tracking-widest text-slate-500">Seed Log</p>
+              <span className="text-[10px] font-bold text-slate-400">{logs.length} entries</span>
             </div>
             <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto custom-scrollbar">
               {logs.map((log, i) => (
                 <div key={i} className="flex items-center gap-3 px-5 py-3">
-                  {log.status === "ok"
-                    ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                    : <AlertCircle size={14} className="text-red-500 shrink-0" />
-                  }
+                  {log.status === "ok"    && <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />}
+                  {log.status === "warn"  && <Info         size={14} className="text-amber-500  shrink-0" />}
+                  {log.status === "error" && <AlertCircle  size={14} className="text-red-500    shrink-0" />}
                   <span className="text-sm font-bold text-slate-700 flex-1">{log.title}</span>
-                  <span className={`text-xs font-semibold ${log.status === "ok" ? "text-slate-400" : "text-red-500"}`}>
-                    {log.message}
-                  </span>
+                  <span className={`text-xs font-semibold ${
+                    log.status === "ok"    ? "text-slate-400" :
+                    log.status === "warn"  ? "text-amber-600" : "text-red-500"
+                  }`}>{log.message}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

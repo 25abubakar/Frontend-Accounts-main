@@ -7,9 +7,9 @@ export interface ApiMenuItem {
   title: string;
   icon?: string | null;
   route?: string | null;
-  parentId?: number | null; 
+  parentId?: number | null;
   sortOrder: number;
-  roles?: string[]; // 🌟 Matches the 'Roles' field in your C# MenuTreeNodeDto
+  roles?: string[];
   children?: ApiMenuItem[];
 }
 
@@ -19,7 +19,14 @@ export interface CreateMenuDto {
   route?: string | null;
   parentId?: number | null;
   sortOrder: number;
-  requiredRoles?: string[]; // 🌟 Matches your C# DTO for POST/PUT
+  requiredRoles?: string[];
+}
+
+export interface SeedResult {
+  seeded: number;
+  skipped: number;
+  errors: number;
+  message: string;
 }
 
 export const menuApi = {
@@ -31,13 +38,19 @@ export const menuApi = {
 
   getActive: () => httpClient.get<MenuDto[]>("/api/app-menu-definitions/active"),
 
+  // POST /api/menus/seed  — one-time backend seed (no auth required)
+  // Seeds the full STATIC_NAV structure with permission keys into the Menus table
+  seedMenus: async (): Promise<SeedResult> => {
+    const response = await api.post<SeedResult>('/api/menus/seed');
+    return response.data;
+  },
+
   createMenu: async (data: CreateMenuDto): Promise<ApiMenuItem> => {
     const response = await api.post<ApiMenuItem>('/api/Menus', data);
     return response.data;
   },
 
   updateMenu: async (id: number, data: CreateMenuDto): Promise<void> => {
-    // 🌟 Matches the PUT endpoint in image_ae43f7.png
     await api.put(`/api/Menus/${id}`, data);
   },
 

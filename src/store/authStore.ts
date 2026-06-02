@@ -15,10 +15,12 @@ interface AuthState {
     roles?: string[],
     userName?: string,
     staffId?: string | null,
-    permissions?: string[]
+    permissions?: string[],
+    token?: string | null        // ← accept token from login response
   ) => void;
   setPermissions: (permissions: string[]) => void;
   setStaffId: (staffId: string) => void;
+  setToken: (token: string) => void;
   logout: () => void;
 
   // Helper: check if user has a permission
@@ -36,14 +38,14 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       isAuthenticated: false,
 
-      setLogin: (email, roles = [], userName, staffId = null, permissions = []) =>
+      setLogin: (email, roles = [], userName, staffId = null, permissions = [], token = null) =>
         set({
           userEmail: email,
           userName: userName ?? email,
           userRoles: roles,
           staffId,
           userPermissions: permissions,
-          token: null,
+          token,                  // ← persist token so axios interceptor can read it
           isAuthenticated: true,
         }),
 
@@ -52,6 +54,9 @@ export const useAuthStore = create<AuthState>()(
 
       setStaffId: (staffId) =>
         set({ staffId }),
+
+      setToken: (token) =>
+        set({ token }),
 
       logout: () =>
         set({

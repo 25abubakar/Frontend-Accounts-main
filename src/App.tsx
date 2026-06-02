@@ -29,6 +29,7 @@ const AccessGroupsPage    = lazy(() => import("./pages/access/AccessGroupsPage")
 const DeptMatrixPage      = lazy(() => import("./pages/access/DeptMatrixPage"));
 const StaffPermissionsPage = lazy(() => import("./pages/access/StaffPermissionsPage"));
 const GroupMatrixPage     = lazy(() => import("./pages/access/GroupMatrixPage"));
+const AdminAccessPage     = lazy(() => import("./pages/access/AdminAccessPage"));
 
 // Communication
 const CommunicationCenterPage = lazy(() => import("./pages/communication/CommunicationCenterPage"));
@@ -88,7 +89,8 @@ const router = createBrowserRouter([
         { path: "/staff/register",      element: <S><RegisterPersonPage /></S> },
 
         // ── Access ───────────────────────────────────────────────────────
-        { path: "/access",                    element: <Navigate to="/access/groups" replace /> },
+        { path: "/access",                    element: <Navigate to="/access/admin" replace /> },
+        { path: "/access/admin",              element: <S><AdminAccessPage /></S> },
         { path: "/access/groups",             element: <S><AccessGroupsPage /></S> },
         { path: "/access/groups/new",         element: <S><AccessGroupsPage /></S> },
         { path: "/access/groups/matrix",      element: <S><GroupMatrixPage /></S> },

@@ -1,13 +1,31 @@
 // src/api/axios.ts
 import axios from 'axios';
-// import { useAuthStore } from '../store/authStore'; // Unused - commented out
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5099';
 
 const api = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true,
+  withCredentials: true,          // sends the ASP.NET Identity cookie automatically
   headers: { 'Content-Type': 'application/json' },
+});
+
+// ── Request interceptor ───────────────────────────────────────────────────
+// Backend uses cookie-based auth (ASP.NET Identity).
+// withCredentials: true already handles cookies automatically.
+// Additionally attach a Bearer token if one was saved (JWT fallback).
+api.interceptors.request.use(config => {
+  try {
+    const raw = localStorage.getItem('lal-portal-auth');
+    if (raw) {
+      const state = JSON.parse(raw) as { state?: { token?: string | null } };
+      const token = state?.state?.token;
+      if (token) {
+        config.headers = config.headers ?? {};
+        config.headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+  } catch { /* localStorage unavailable or JSON invalid — continue without header */ }
+  return config;
 });
 
 // ── Response interceptor ──────────────────────────────────────────────────
@@ -30,13 +48,12 @@ api.interceptors.response.use(
       }
     }
 
-    // 403 — permission denied → show toast (non-blocking)
+    // 403 — permission denied → dispatch event for toast (non-blocking)
     if (status === 403) {
       const msg =
         error.response?.data?.message ||
         error.response?.data?.Message ||
         "You don't have permission to perform this action.";
-      // Dispatch a custom event — the app listens and shows a toast
       window.dispatchEvent(new CustomEvent('permission-denied', { detail: msg }));
     }
 

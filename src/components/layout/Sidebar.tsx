@@ -25,35 +25,6 @@ const getIcon = (iconName?: string | null) => {
   return k ? IconMap[k] : Circle;
 };
 
-// ── Static fallback (used only when RBAC sidebar fails) ───────────────────
-const STATIC_NAV: SidebarItem[] = [
-  { id: -1,  title: "Overview",          icon: "LayoutDashboard", route: "/dashboard",           sortOrder: 1, children: [] },
-  { id: -2,  title: "Accounts & Groups", icon: "Building2",       route: null,                   sortOrder: 2, children: [
-    { id: -21, title: "Companies & Entities", icon: "Building2", route: "/groups/companies",  sortOrder: 1, children: [] },
-    { id: -22, title: "Organization Chart",   icon: "Network",   route: "/organization",       sortOrder: 2, children: [] },
-    { id: -23, title: "Partner Portals",      icon: "Globe2",    route: "/groups/partners",    sortOrder: 3, children: [] },
-  ]},
-  { id: -3,  title: "HR Management",     icon: "Users",           route: null,                   sortOrder: 3, children: [
-    { id: -31, title: "Staff & Persons",  icon: "Users",      route: "/hr/staff",          sortOrder: 1, children: [] },
-    { id: -32, title: "Register Person",  icon: "UserCheck",  route: "/hr/staff/register", sortOrder: 2, children: [] },
-    { id: -33, title: "Positions",        icon: "Briefcase",  route: "/hr/vacancies",      sortOrder: 3, children: [] },
-    { id: -34, title: "Reports",          icon: "BarChart3",  route: "/hr/reports",        sortOrder: 4, children: [] },
-  ]},
-  { id: -4,  title: "Access Control",    icon: "Shield",          route: null,                   sortOrder: 4, children: [
-    { id: -41, title: "Access Groups",    icon: "Layers",  route: "/access/groups",        sortOrder: 1, children: [] },
-    { id: -42, title: "Group Matrix",     icon: "Shield",  route: "/access/groups/matrix", sortOrder: 2, children: [] },
-    { id: -43, title: "Dept Permissions", icon: "Shield",  route: "/access/dept",          sortOrder: 3, children: [] },
-  ]},
-  { id: -5,  title: "Platform Settings", icon: "Settings",        route: null,                   sortOrder: 5, children: [
-    { id: -51, title: "General",        icon: "Settings",    route: "/settings/general",      sortOrder: 1, children: [] },
-    { id: -52, title: "Branding",       icon: "Palette",     route: "/settings/branding",     sortOrder: 2, children: [] },
-    { id: -53, title: "Email Templates",icon: "Mail",        route: "/settings/emails",       sortOrder: 3, children: [] },
-    { id: -54, title: "Integrations",   icon: "Link",        route: "/settings/integrations", sortOrder: 4, children: [] },
-    { id: -55, title: "Menu Manager",   icon: "LayoutGrid",  route: "/settings/menus",        sortOrder: 5, children: [] },
-    { id: -56, title: "Seed Menus",     icon: "Zap",         route: "/settings/seed-menus",   sortOrder: 6, children: [] },
-  ]},
-];
-
 interface SidebarProps {
   themeColor: string;
   onNavClick?: () => void;
@@ -65,7 +36,7 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
   const [menuItems, setMenuItems]     = useState<SidebarItem[]>([]);
   const [loading, setLoading]         = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [usingFallback, setUsingFallback]   = useState(false);
+  const [apiError, setApiError]             = useState(false);
 
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const userRoles       = useAuthStore(s => s.userRoles);
@@ -78,26 +49,22 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
   const fetchMenu = useCallback(async () => {
     try {
       setLoading(true);
+      setApiError(false);
 
       // ── ONLY source: GET /api/rbac/sidebar ──────────────────────────────
       // Backend filters by user permissions — trust it completely.
       // Empty [] = user has no access = show nothing (correct behaviour).
-      // Only fall back to static nav if the network call itself throws.
-      try {
-        const items = await rbacApi.getSidebar();
-        // items may be [] for restricted users — that is correct, show nothing
-        setMenuItems(dedupeMenuTreeByRoute(items));
-        setUsingFallback(false);
-      } catch {
-        // Network / server error — show static nav for admins only
-        setMenuItems(isAdmin ? dedupeMenuTreeByRoute(STATIC_NAV) : []);
-        setUsingFallback(isAdmin);
-      }
+      const items = await rbacApi.getSidebar();
+      setMenuItems(dedupeMenuTreeByRoute(items));
 
+    } catch (err) {
+      console.error("Failed to load sidebar:", err);
+      setApiError(true);
+      setMenuItems([]);
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) fetchMenu();
@@ -212,14 +179,27 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
           className="h-14 w-auto object-contain transition-transform duration-500 hover:scale-105" />
       </div>
 
-      {/* Fallback notice */}
-      {usingFallback && !loading && (
-        <div onClick={() => navigate("/settings/seed-menus")}
-          className="mx-3 mt-3 flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 cursor-pointer hover:bg-amber-100 transition-colors">
-          <Zap size={13} className="text-amber-500 shrink-0" />
-          <span className="text-[10px] font-bold text-amber-700 leading-tight">
-            Using static nav. Click to seed DB menus.
-          </span>
+      {/* API Error notice */}
+      {apiError && !loading && (
+        <div className="mx-3 mt-3 flex flex-col gap-2 rounded-xl bg-red-50 border border-red-200 px-3 py-3">
+          <div className="flex items-center gap-2">
+            <Shield size={14} className="text-red-500 shrink-0" />
+            <span className="text-[10px] font-bold text-red-700 leading-tight">
+              Failed to load menu from server
+            </span>
+          </div>
+          <button onClick={fetchMenu}
+            className="w-full rounded-lg bg-red-100 hover:bg-red-200 px-3 py-1.5 text-[10px] font-bold text-red-700 transition-colors">
+            Retry
+          </button>
+          {isAdmin && (
+            <div className="mt-1 pt-2 border-t border-red-200">
+              <button onClick={() => navigate("/settings/seed-menus")}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 px-3 py-1.5 text-[10px] font-bold text-amber-700 transition-colors">
+                <Zap size={12} /> Seed Database Menus
+              </button>
+            </div>
+          )}
         </div>
       )}
 

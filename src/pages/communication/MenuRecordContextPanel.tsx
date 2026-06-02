@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Search, X } from "lucide-react";
 import type { AppNoteDto } from "../../models/appNoteModels";
 import type { MenuDto } from "../../models/menuModels";
 
@@ -20,6 +22,20 @@ export function MenuRecordContextPanel({
   onMenuChange,
   onRecordChange,
 }: Props) {
+  const [entityTypeInput, setEntityTypeInput] = useState(currentEntityType || "");
+  const [entityIdInput,   setEntityIdInput]   = useState(currentEntityId   || "");
+
+  const applyRecord = () => {
+    const t = entityTypeInput.trim();
+    const i = entityIdInput.trim();
+    if (t && i) onRecordChange(t, i);
+  };
+
+  const clearRecord = () => {
+    setEntityTypeInput("");
+    setEntityIdInput("");
+    onRecordChange("", "");
+  };
   // General notes (no menu, no entity) + notes matching current menu
   const menuNotes = notes.filter(x => {
     if (x.isDismissed) return false;
@@ -93,28 +109,56 @@ export function MenuRecordContextPanel({
       <div className="rounded-2xl border bg-white p-4 shadow-sm">
         <div className="mb-3 font-extrabold text-slate-900">Current Record</div>
 
-        <div className="mb-4 grid grid-cols-3 gap-2">
-          {[
-            { label: "Patient #101",      type: "Patient",     id: "101"  },
-            { label: "Claim #5001",       type: "Claim",       id: "5001" },
-            { label: "Appointment #9002", type: "Appointment", id: "9002" },
-          ].map(({ label, type, id }) => (
+        {/* Free-form record lookup — no hardcoded demo data */}
+        <div className="mb-4 flex gap-2">
+          <div className="flex-1">
+            <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Record Type
+            </label>
+            <input
+              value={entityTypeInput}
+              onChange={e => setEntityTypeInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && applyRecord()}
+              placeholder="e.g. Patient, Claim…"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+              Record ID
+            </label>
+            <input
+              value={entityIdInput}
+              onChange={e => setEntityIdInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && applyRecord()}
+              placeholder="e.g. 101"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none"
+            />
+          </div>
+          <div className="flex items-end gap-1">
             <button
-              key={label}
-              onClick={() => onRecordChange(type, id)}
-              className={`rounded-xl border px-2 py-2 text-xs font-bold transition-all ${
-                currentEntityType === type && currentEntityId === id
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-              }`}
+              onClick={applyRecord}
+              disabled={!entityTypeInput.trim() || !entityIdInput.trim()}
+              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 transition-colors"
             >
-              {label}
+              <Search size={12} /> Filter
             </button>
-          ))}
+            {(currentEntityType || currentEntityId) && (
+              <button
+                onClick={clearRecord}
+                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 transition-colors"
+              >
+                <X size={12} /> Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
-          Selected: {currentEntityType || "—"} #{currentEntityId || "—"}
+          {currentEntityType && currentEntityId
+            ? <>Showing notes for: <span className="text-blue-600">{currentEntityType} #{currentEntityId}</span></>
+            : "Selected: —"
+          }
         </div>
 
         <div className="space-y-2 max-h-48 overflow-y-auto">

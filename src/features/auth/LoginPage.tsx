@@ -27,6 +27,7 @@ export default function LoginPage() {
   const setLogin  = useAuthStore(s => s.setLogin);
   const setPermissions = useAuthStore(s => s.setPermissions);
   const setStaffId     = useAuthStore(s => s.setStaffId);
+  const setToken       = useAuthStore(s => s.setToken);
   const { refreshAccessibleData } = useAuth();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
@@ -58,10 +59,15 @@ export default function LoginPage() {
         []
       );
 
-      // 3. Try to get staffId from /api/Auth/me (non-blocking)
+      // 3. Try to get staffId + token from /api/Auth/me (non-blocking)
       try {
         const meRes = await api.get('/api/Auth/me');
         const me = meRes.data as Record<string, unknown>;
+
+        // Save JWT token if backend returns one (used as Bearer fallback)
+        const token = (me?.token ?? me?.Token ?? me?.accessToken ?? me?.AccessToken) as string | null;
+        if (token) setToken(token);
+
         const sid = (me?.staffId ?? me?.StaffId ?? null) as string | null;
         if (sid) {
           setStaffId(sid);

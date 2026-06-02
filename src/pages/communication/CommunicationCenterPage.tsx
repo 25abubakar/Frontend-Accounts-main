@@ -22,11 +22,16 @@ function toArr<T>(v: unknown): T[] {
 }
 
 export default function CommunicationCenterPage() {
-  const { userRoles } = useAuthStore();
+  const { userRoles, userEmail, userName } = useAuthStore();
   const { setUnreadCount } = useNotesStore();
   const isAdmin = userRoles.some(r =>
     ["admin", "superadmin", "super admin", "ceo", "dutyceo"].includes(r.toLowerCase())
   );
+
+  // Current user identity — used as client-side privacy guard for USER notes
+  // The REAL filter is on backend (CreatedBy = current user ID).
+  // This is a display-level safety net only.
+  const currentIdentity = userName || userEmail || "";
 
   const { menus, loading: menusLoading } = useMenus();
   const { getByType, getText, getDefault, loading: lookupLoading, error: lookupError } = useLookups();
@@ -97,6 +102,19 @@ export default function CommunicationCenterPage() {
   const filterNotes = (src: "ADMIN" | "USER", search: string, typeF: string, priF: string) =>
     notes
       .filter(n => n.sourceTypeCode === src)
+      // ── PRIVACY GUARD ────────────────────────────────────────────────────
+      // USER notes: only show notes created by the current logged-in user.
+      // Backend is the authoritative filter (CreatedBy = currentUserId).
+      // This client-side check is a safety net for cases where the backend
+      // returns extra rows (e.g. during development / before backend is fixed).
+      // It matches on createdBy field which should equal the user's loginId/email.
+      .filter(n => {
+        if (src !== "USER") return true;
+        if (!n.createdBy) return true; // backend didn't send createdBy — trust backend
+        const cb = n.createdBy.toLowerCase();
+        const id = currentIdentity.toLowerCase();
+        return !id || cb === id || cb.includes(id) || id.includes(cb);
+      })
       .filter(n => !search || n.title.toLowerCase().includes(search.toLowerCase()) || n.noteBody.toLowerCase().includes(search.toLowerCase()))
       .filter(n => !typeF || n.noteTypeCode === typeF)
       .filter(n => !priF || n.priorityCode === priF);
