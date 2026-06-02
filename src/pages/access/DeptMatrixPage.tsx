@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, AlertCircle, Save, RotateCcw, CheckSquare, Square,
   Shield, ChevronDown, ChevronRight, Check, X, Users,
-  AlertTriangle, ExternalLink,
+  AlertTriangle, ExternalLink, Globe2, Building2, MapPin, Search,
 } from "lucide-react";
 import {
   accessApi,
@@ -85,6 +85,27 @@ function getFeatureDisplayName(name?: string, key?: string): string {
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function norm(value?: string | null) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function isLabel(node: OrgNode, label: string) {
+  return norm(node.label) === norm(label);
+}
+
+function sortOrgNodes(nodes: OrgNode[]) {
+  return [...nodes].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function isDescendantOf(node: OrgNode, ancestorId: number, byId: Map<number, OrgNode>) {
+  let parentId = node.parentId;
+  while (parentId !== null && parentId !== undefined) {
+    if (parentId === ancestorId) return true;
+    parentId = byId.get(parentId)?.parentId ?? null;
+  }
+  return false;
 }
 
 /** For a role group, compute the "majority" value for each feature (true if >50% have it) */
@@ -342,8 +363,18 @@ export default function DeptMatrixPage() {
 
   // Department selector
   const [departments, setDepartments] = useState<OrgNode[]>([]);
+  const [orgNodes, setOrgNodes] = useState<OrgNode[]>([]);
   const [selectedDept, setSelectedDept] = useState<string>(deptId ?? "");
   const [deptName, setDeptName] = useState<string>("");
+  const [selectedCountryId, setSelectedCountryId] = useState("");
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedPersonKeys, setSelectedPersonKeys] = useState<string[]>([]);
+  const [personSearch, setPersonSearch] = useState("");
+  const [guideModule, setGuideModule] = useState("All");
+  const [selectedFeatureKeys, setSelectedFeatureKeys] = useState<string[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Matrix data from API
   const [matrixData, setMatrixData] = useState<MatrixResponse | null>(null);
@@ -366,15 +397,19 @@ export default function DeptMatrixPage() {
   // ── Load departments ─────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
+      orgTreeApi.getAll().catch(() => [] as OrgNode[]),
       orgTreeApi.getByLabel("Branch").catch(() => [] as OrgNode[]),
       orgTreeApi.getByLabel("Department").catch(() => [] as OrgNode[]),
-    ]).then(([branches, depts]) => {
+    ]).then(([allNodes, branches, depts]) => {
       const seen = new Set<number>();
-      const unique = [...branches, ...depts].filter(n => {
+      const sourceNodes = allNodes.length > 0 ? allNodes : [...branches, ...depts];
+      const unique = sourceNodes.filter(n => {
+        if (!isLabel(n, "Branch") && !isLabel(n, "Department")) return false;
         if (seen.has(n.id)) return false;
         seen.add(n.id);
         return true;
       });
+      setOrgNodes(sourceNodes);
       setDepartments(unique);
       if (!selectedDept && unique.length > 0) setSelectedDept(String(unique[0].id));
     });
@@ -384,6 +419,7 @@ export default function DeptMatrixPage() {
   useEffect(() => {
     const found = departments.find(d => String(d.id) === selectedDept);
     setDeptName(found?.name ?? "");
+    if (found && isLabel(found, "Branch")) setSelectedBranchId(String(found.id));
   }, [selectedDept, departments]);
 
   // ── Load matrix ──────────────────────────────────────────────────────
@@ -415,6 +451,13 @@ export default function DeptMatrixPage() {
 
   useEffect(() => { loadMatrix(); }, [loadMatrix]);
 
+  useEffect(() => {
+    setSelectedRole("");
+    setSelectedPersonKeys([]);
+    setPersonSearch("");
+    setSelectedFeatureKeys([]);
+  }, [selectedDept]);
+
   // ── Derived data ─────────────────────────────────────────────────────
   const features   = useMemo(() => matrixData?.features ?? [], [matrixData]);
   const staff      = useMemo(() => matrixData?.staff    ?? [], [matrixData]);
@@ -431,6 +474,74 @@ export default function DeptMatrixPage() {
   // Grouped by module for the visible features only
   const visibleGrouped = useMemo(() => groupByModule(visibleFeatures), [visibleFeatures]);
   const visibleModules = useMemo(() => Object.keys(visibleGrouped), [visibleGrouped]);
+
+  const orgById = useMemo(() => new Map(orgNodes.map(node => [node.id, node])), [orgNodes]);
+  const selectedCountry = selectedCountryId ? orgById.get(Number(selectedCountryId)) ?? null : null;
+  const selectedCompany = selectedCompanyId ? orgById.get(Number(selectedCompanyId)) ?? null : null;
+
+  const countries = useMemo(
+    () => sortOrgNodes(orgNodes.filter(node => isLabel(node, "Country"))),
+    [orgNodes]
+  );
+
+  const companies = useMemo(
+    () => sortOrgNodes(
+      orgNodes.filter(node =>
+        isLabel(node, "Company") &&
+        (!selectedCountry || isDescendantOf(node, selectedCountry.id, orgById))
+      )
+    ),
+    [orgNodes, orgById, selectedCountry]
+  );
+
+  const branches = useMemo(
+    () => sortOrgNodes(
+      orgNodes.filter(node =>
+        isLabel(node, "Branch") &&
+        (!selectedCompany || isDescendantOf(node, selectedCompany.id, orgById))
+      )
+    ),
+    [orgNodes, orgById, selectedCompany]
+  );
+
+  const roles = useMemo(
+    () => Array.from(new Set(staff.map(r => r.jobTitle?.trim()).filter(Boolean) as string[]))
+      .sort((a, b) => a.localeCompare(b)),
+    [staff]
+  );
+
+  const staffForRole = useMemo(
+    () => selectedRole
+      ? staff.filter(r => r.staffId && (r.jobTitle ?? "Unassigned") === selectedRole)
+      : [],
+    [staff, selectedRole]
+  );
+
+  const filteredStaffForRole = useMemo(
+    () => staffForRole.filter(r => {
+      const q = norm(personSearch);
+      if (!q) return true;
+      return norm(r.fullName).includes(q) || norm(r.loginId).includes(q);
+    }),
+    [staffForRole, personSearch]
+  );
+
+  const selectedPeople = useMemo(
+    () => staff
+      .filter(r => selectedPersonKeys.includes(rowKey(r)))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName)),
+    [staff, selectedPersonKeys]
+  );
+
+  const guideFeatures = useMemo(
+    () => guideModule === "All" ? features : grouped[guideModule] ?? [],
+    [features, grouped, guideModule]
+  );
+
+  const visiblePersonKeys = filteredStaffForRole.map(rowKey);
+  const visibleFeatureKeys = guideFeatures.map(f => f.featureKey);
+  const allVisiblePeopleSelected = visiblePersonKeys.length > 0 && visiblePersonKeys.every(k => selectedPersonKeys.includes(k));
+  const allVisibleFeaturesSelected = visibleFeatureKeys.length > 0 && visibleFeatureKeys.every(k => selectedFeatureKeys.includes(k));
 
   // Count total pending changes
   const pendingCount = useMemo(() => {
@@ -505,6 +616,81 @@ export default function DeptMatrixPage() {
   }, [staff, visibleFeatures]);
 
   // ── Reset ────────────────────────────────────────────────────────────
+  const handleCountryChange = (value: string) => {
+    setSelectedCountryId(value);
+    setSelectedCompanyId("");
+    setSelectedBranchId("");
+    setSelectedDept("");
+    setSelectedRole("");
+    setSelectedPersonKeys([]);
+    setPersonSearch("");
+  };
+
+  const handleCompanyChange = (value: string) => {
+    setSelectedCompanyId(value);
+    setSelectedBranchId("");
+    setSelectedDept("");
+    setSelectedRole("");
+    setSelectedPersonKeys([]);
+    setPersonSearch("");
+  };
+
+  const handleBranchChange = (value: string) => {
+    setSelectedBranchId(value);
+    setSelectedDept(value);
+    setSelectedRole("");
+    setSelectedPersonKeys([]);
+    setPersonSearch("");
+  };
+
+  const togglePerson = (key: string) => {
+    setSelectedPersonKeys(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  };
+
+  const toggleFeature = (featureKey: string) => {
+    setSelectedFeatureKeys(prev =>
+      prev.includes(featureKey) ? prev.filter(k => k !== featureKey) : [...prev, featureKey]
+    );
+  };
+
+  const selectVisiblePeople = () => {
+    setSelectedPersonKeys(prev => Array.from(new Set([...prev, ...visiblePersonKeys])));
+  };
+
+  const clearVisiblePeople = () => {
+    setSelectedPersonKeys(prev => prev.filter(k => !visiblePersonKeys.includes(k)));
+  };
+
+  const selectVisibleFeatures = () => {
+    setSelectedFeatureKeys(prev => Array.from(new Set([...prev, ...visibleFeatureKeys])));
+  };
+
+  const clearVisibleFeatures = () => {
+    setSelectedFeatureKeys(prev => prev.filter(k => !visibleFeatureKeys.includes(k)));
+  };
+
+  const applyGuidedAccess = (hasAccess: boolean) => {
+    if (selectedPersonKeys.length === 0) {
+      setError("Select at least one person before applying access.");
+      return;
+    }
+    if (selectedFeatureKeys.length === 0) {
+      setError("Select at least one access item before applying access.");
+      return;
+    }
+    setError(null);
+    setLocalPerms(prev => {
+      const next = { ...prev };
+      for (const key of selectedPersonKeys) {
+        next[key] = { ...next[key] };
+        for (const featureKey of selectedFeatureKeys) {
+          next[key][featureKey] = hasAccess;
+        }
+      }
+      return next;
+    });
+  };
+
   const handleReset = useCallback(() => {
     setLocalPerms(JSON.parse(JSON.stringify(originalPerms)));
   }, [originalPerms]);
@@ -655,10 +841,280 @@ export default function DeptMatrixPage() {
       </div>
 
       {/* ── Matrix body ── */}
+      <div className="shrink-0 px-5 lg:px-8 py-4">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <div className="text-sm font-black text-slate-800">Quick Access Assignment</div>
+              <div className="text-xs font-semibold text-slate-400">Choose people, choose access, then grant or revoke before saving.</div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {pendingCount > 0 && (
+                <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-600">
+                  {pendingCount} unsaved
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen(v => !v)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                {advancedOpen ? "Hide Full Matrix" : "Show Full Matrix"}
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || loading || pendingCount === 0}
+                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-40"
+              >
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                Save
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <Globe2 size={11} /> Country
+                  </label>
+                  <select
+                    value={selectedCountryId}
+                    onChange={e => handleCountryChange(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400"
+                  >
+                    <option value="">Select country...</option>
+                    {countries.map(country => (
+                      <option key={country.id} value={country.id}>{country.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <Building2 size={11} /> Company
+                  </label>
+                  <select
+                    value={selectedCompanyId}
+                    onChange={e => handleCompanyChange(e.target.value)}
+                    disabled={!selectedCountryId}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 disabled:opacity-50"
+                  >
+                    <option value="">Select company...</option>
+                    {companies.map(company => (
+                      <option key={company.id} value={company.id}>{company.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <MapPin size={11} /> Branch
+                  </label>
+                  <select
+                    value={selectedBranchId}
+                    onChange={e => handleBranchChange(e.target.value)}
+                    disabled={!selectedCompanyId}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 disabled:opacity-50"
+                  >
+                    <option value="">Select branch...</option>
+                    {branches.map(branch => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Role</label>
+                  <select
+                    value={selectedRole}
+                    onChange={e => {
+                      setSelectedRole(e.target.value);
+                      setSelectedPersonKeys([]);
+                      setPersonSearch("");
+                    }}
+                    disabled={!selectedDept || loading}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-indigo-400 disabled:opacity-50"
+                  >
+                    <option value="">Select role...</option>
+                    {roles.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-white px-3 py-2">
+                  <div className="relative min-w-56 flex-1">
+                    <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={personSearch}
+                      onChange={e => setPersonSearch(e.target.value)}
+                      disabled={!selectedRole}
+                      placeholder="Search people..."
+                      className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-3 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 disabled:opacity-50"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={allVisiblePeopleSelected ? clearVisiblePeople : selectVisiblePeople}
+                    disabled={!selectedRole || visiblePersonKeys.length === 0}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {allVisiblePeopleSelected ? "Clear shown" : "Select shown"}
+                  </button>
+                </div>
+
+                <div className="max-h-44 overflow-y-auto p-2">
+                  {!selectedRole ? (
+                    <div className="py-6 text-center text-xs font-semibold text-slate-400">Select a role to show people.</div>
+                  ) : filteredStaffForRole.length === 0 ? (
+                    <div className="py-6 text-center text-xs font-semibold text-slate-400">No people found.</div>
+                  ) : (
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      {filteredStaffForRole.map(person => {
+                        const key = rowKey(person);
+                        return (
+                          <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50/40">
+                            <input
+                              type="checkbox"
+                              checked={selectedPersonKeys.includes(key)}
+                              onChange={() => togglePerson(key)}
+                              className="h-4 w-4 rounded border-slate-300 accent-indigo-600"
+                            />
+                            <span className="min-w-0 flex-1 truncate">{person.fullName}</span>
+                            <span className="shrink-0 font-mono text-[10px] text-slate-400">{person.loginId}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {selectedPeople.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 border-t border-slate-100 bg-white px-3 py-2">
+                    {selectedPeople.slice(0, 10).map(person => {
+                      const key = rowKey(person);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => togglePerson(key)}
+                          className="inline-flex max-w-48 items-center gap-1 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-1 text-[11px] font-bold text-indigo-700 hover:bg-indigo-100"
+                        >
+                          <span className="truncate">{person.fullName}</span>
+                          <X size={10} className="shrink-0" />
+                        </button>
+                      );
+                    })}
+                    {selectedPeople.length > 10 && (
+                      <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">
+                        +{selectedPeople.length - 10} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-1">
+                {["All", ...modules].map(mod => (
+                  <button
+                    key={mod}
+                    type="button"
+                    onClick={() => setGuideModule(mod)}
+                    className={`rounded-lg px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider transition-all ${
+                      guideModule === mod
+                        ? "bg-indigo-600 text-white shadow-sm"
+                        : "border border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
+                    }`}
+                  >
+                    {mod}
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-white px-3 py-2">
+                  <span className="text-xs font-black text-slate-700">{selectedFeatureKeys.length} access item{selectedFeatureKeys.length !== 1 ? "s" : ""} selected</span>
+                  <button
+                    type="button"
+                    onClick={allVisibleFeaturesSelected ? clearVisibleFeatures : selectVisibleFeatures}
+                    disabled={visibleFeatureKeys.length === 0}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {allVisibleFeaturesSelected ? "Clear shown" : "Select shown"}
+                  </button>
+                </div>
+                <div className="max-h-44 overflow-y-auto p-2">
+                  {guideFeatures.length === 0 ? (
+                    <div className="py-6 text-center text-xs font-semibold text-slate-400">No access items in this module.</div>
+                  ) : (
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      {guideFeatures.map(feature => (
+                        <label key={feature.featureKey} className="flex cursor-pointer items-center gap-2 rounded-lg bg-white px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50/40">
+                          <input
+                            type="checkbox"
+                            checked={selectedFeatureKeys.includes(feature.featureKey)}
+                            onChange={() => toggleFeature(feature.featureKey)}
+                            className="h-4 w-4 rounded border-slate-300 accent-indigo-600"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{getFeatureDisplayName(feature.featureName, feature.featureKey)}</span>
+                          <span className="shrink-0 text-[10px] font-bold text-slate-400">{feature.module || "General"}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyGuidedAccess(true)}
+                  disabled={selectedPersonKeys.length === 0 || selectedFeatureKeys.length === 0}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-emerald-700 disabled:opacity-40"
+                >
+                  <CheckSquare size={15} /> Grant Access
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyGuidedAccess(false)}
+                  disabled={selectedPersonKeys.length === 0 || selectedFeatureKeys.length === 0}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-red-700 disabled:opacity-40"
+                >
+                  <Square size={15} /> Revoke Access
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex-1 min-h-0 overflow-hidden px-5 lg:px-8 py-4">
         {loading ? (
           <div className="flex h-full items-center justify-center">
             <Loader2 size={32} className="animate-spin text-indigo-500" />
+          </div>
+
+        ) : !advancedOpen ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-200 bg-white">
+            <Shield size={40} className="text-slate-200" strokeWidth={1.5} />
+            <p className="text-sm font-bold text-slate-600">Use Quick Access Assignment above</p>
+            <p className="max-w-xl text-center text-xs font-semibold text-slate-400">
+              The full matrix is hidden to keep this page simple. Open it only when you need to review or fine-tune individual permission cells.
+            </p>
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen(true)}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
+            >
+              Show Full Matrix
+            </button>
           </div>
 
         ) : staff.length === 0 ? (
