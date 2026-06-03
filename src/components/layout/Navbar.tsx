@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Palette, Check, Menu, X, Info, Lock, Bell } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Palette, Check, Menu, X, Lock, Bell } from "lucide-react";
 import ProfileDropdown from "./ProfileDropdown";
-import GlobalNotesDrawer from "./GlobalNotesDrawer";
 import UserNotes from "./UserNotes";
+import NoteFormDrawer from "../NoteFormDrawer";
 import { useNotesStore } from "../../store/notesStore";
 import { appNotesApi } from "../../api/appNotesApi";
 
@@ -23,10 +22,9 @@ interface NavbarProps {
 }
 
 export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: NavbarProps) {
-  const navigate = useNavigate();
   const [showTheme, setShowTheme] = useState(false);
-  const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [isNotesOpen, setIsNotesOpen] = useState(false);
+  const [isNoteFormOpen, setIsNoteFormOpen] = useState(false);
   const themeRef = useRef<HTMLDivElement>(null);
 
   const { unreadCount, setUnreadCount } = useNotesStore();
@@ -89,16 +87,6 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
         {/* Right — actions */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
 
-          {/* Instructions Button → opens left drawer */}
-          <button
-            onClick={() => setIsInstructionsOpen(true)}
-            aria-label="Open Instructions"
-            className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 active:scale-95 transition-all shadow-sm"
-          >
-            <Info size={16} strokeWidth={2.5} className="text-white" />
-            <span className="text-xs font-bold text-white tracking-wide">Instructions</span>
-          </button>
-
           {/* My Notes Button → opens right drawer */}
           <button
             onClick={() => setIsNotesOpen(true)}
@@ -109,11 +97,11 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
             <span className="hidden sm:block text-xs font-bold text-white tracking-wide">My Notes</span>
           </button>
 
-          {/* Notification Bell → navigates to Communication Center */}
+          {/* Notification Bell → opens NoteForm drawer */}
           <button
-            onClick={() => navigate("/communication")}
-            aria-label="Notifications"
-            title="Communication Center"
+            onClick={() => setIsNoteFormOpen(true)}
+            aria-label="New Note"
+            title="New Note"
             className="relative p-2 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 active:scale-90 transition-all shadow-sm"
           >
             <Bell size={17} className="text-white" />
@@ -167,14 +155,14 @@ export default function Navbar({ toggleSidebar, themeColor, setThemeColor }: Nav
       </header>
 
       {/* Drawers */}
-      <GlobalNotesDrawer
-        isOpen={isInstructionsOpen}
-        onClose={() => setIsInstructionsOpen(false)}
-      />
-
       <UserNotes
         isOpen={isNotesOpen}
         onClose={() => setIsNotesOpen(false)}
+      />
+
+      <NoteFormDrawer
+        isOpen={isNoteFormOpen}
+        onClose={() => setIsNoteFormOpen(false)}
       />
     </>
   );

@@ -31,9 +31,6 @@ const StaffPermissionsPage = lazy(() => import("./pages/access/StaffPermissionsP
 const GroupMatrixPage     = lazy(() => import("./pages/access/GroupMatrixPage"));
 const AdminAccessPage     = lazy(() => import("./pages/access/AdminAccessPage"));
 
-// Communication
-const CommunicationCenterPage = lazy(() => import("./pages/communication/CommunicationCenterPage"));
-
 // Settings
 const MenuManager         = lazy(() => import("./pages/settings/MenuManager"));
 const MenuSeeder          = lazy(() => import("./pages/settings/MenuSeeder"));
@@ -99,11 +96,6 @@ const router = createBrowserRouter([
         { path: "/access/matrix/:deptId",     element: <S><DeptMatrixPage /></S> },
         { path: "/access/staff/:staffId",     element: <S><StaffPermissionsPage /></S> },
         { path: "/rbac/staff/:staffId",       element: <S><StaffPermissionsPage /></S> },
-
-        // ── Communication ────────────────────────────────────────────────
-        { path: "/communication",        element: <ErrorBoundary><S><CommunicationCenterPage /></S></ErrorBoundary> },
-        { path: "/communication/center", element: <ErrorBoundary><S><CommunicationCenterPage /></S></ErrorBoundary> },
-        { path: "/notes",                element: <ErrorBoundary><S><CommunicationCenterPage /></S></ErrorBoundary> },
 
         // ── Settings ─────────────────────────────────────────────────────
         { path: "/settings",              element: <Navigate to="/settings/general" replace /> },
