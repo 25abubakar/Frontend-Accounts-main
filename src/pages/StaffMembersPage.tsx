@@ -44,7 +44,7 @@ export default function StaffMembersPage() {
       setLoadingStaff(true);
       // Use accessible data if available, otherwise fetch from API
       if (accessibleData.staff.length > 0) {
-        setStaffList(accessibleData.staff);
+        setStaffList(accessibleData.staff as StaffDto[]);
       } else {
         const data = await staffApi.getAll();
         setStaffList(data);
@@ -59,7 +59,7 @@ export default function StaffMembersPage() {
       setLoadingPersons(true);
       // Use accessible data if available, otherwise fetch from API
       if (accessibleData.persons.length > 0) {
-        setPersonsList(accessibleData.persons);
+        setPersonsList(accessibleData.persons as PersonDto[]);
       } else {
         const data = await personsApi.getAll();
         setPersonsList(data);

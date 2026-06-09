@@ -1,38 +1,48 @@
-// src/api/auth.ts
 import api from './axios';
-import type { RegisterDto, LoginDto, AuthResponse, AssignRoleDto, AuthUser } from '../types';
+import { API } from './endpoints';
+import { unwrapResponse, toArray } from './apiHelpers';
+import type { RegisterDto, AssignRoleDto, AuthUser } from '../types';
+import type { AuthResponseDto, UserSessionDto } from '../types/api';
+
+export interface LoginPayload {
+  username: string;
+  password: string;
+  rememberMe?: boolean;
+}
 
 export const AuthAPI = {
-
-  // POST /api/Auth/register
-  // Response: { success, message, email, roles }
-  register: async (data: RegisterDto): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/api/Auth/register', data);
-    return response.data;
+  register: async (data: RegisterDto): Promise<AuthResponseDto> => {
+    const res = await api.post(API.auth.register, data);
+    return res.data as AuthResponseDto;
   },
 
-  // POST /api/Auth/login
-  // Backend uses cookie-based auth — no token in response body
-  // Response: { success, message, email, roles }
-  login: async (data: LoginDto): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/api/Auth/login', data);
-    return response.data;
+  login: async (payload: LoginPayload): Promise<AuthResponseDto> => {
+    const res = await api.post(API.auth.login, {
+      username: payload.username,
+      password: payload.password,
+      rememberMe: payload.rememberMe ?? false,
+    });
+    return res.data as AuthResponseDto;
   },
 
-  // POST /api/Auth/logout
   logout: async (): Promise<void> => {
-    await api.post('/api/Auth/logout');
+    await api.post(API.auth.logout);
   },
 
-  // POST /api/Auth/assign-role
-  assignRole: async (data: AssignRoleDto): Promise<AuthResponse> => {
-    const response = await api.post<AuthResponse>('/api/Auth/assign-role', data);
-    return response.data;
+  getSession: async (): Promise<UserSessionDto> => {
+    const res = await api.get(API.auth.session);
+    return unwrapResponse<UserSessionDto>(res);
   },
 
-  // GET /api/Auth/users
+  assignRole: async (data: AssignRoleDto): Promise<AuthResponseDto> => {
+    const res = await api.post(API.auth.assignRole, data);
+    return res.data as AuthResponseDto;
+  },
+
   getUsers: async (): Promise<AuthUser[]> => {
-    const response = await api.get<AuthUser[]>('/api/Auth/users');
-    return response.data;
+    const res = await api.get(API.auth.users);
+    return toArray<AuthUser>(res.data);
   },
 };
+
+export const authApi = AuthAPI;

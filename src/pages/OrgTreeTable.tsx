@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
-
+ 
 import type { OrgFlatTreeNode, VacancyDto, CreatePositionDto, CreateOrgNodeDto } from "../types";
 import { orgTreeApi } from "../api/orgTreeApi";
 import { positionApi } from "../api/positionApi";
@@ -12,10 +12,10 @@ import OrgToolbar, { type TableFilters } from "../components/OrgToolbar";
 import OrgGridCard from "../components/OrgGridCard";
 import OrgTable from "../components/OrgTable";
 import { containerVariants } from "../utils/orgGroupTreeDesign";
-
+ 
 import SimpleDeleteModal from "../components/DeleteModel/SimpleDeleteModal";
 import TypeConfirmDeleteModal from "../components/DeleteModel/TypeConfirmDeleteModal";
-
+ 
 const DEFAULT_FILTERS: TableFilters = {
   country: "",
   company: "",
@@ -23,27 +23,27 @@ const DEFAULT_FILTERS: TableFilters = {
   jobTitle: "",
   status: "all",
 };
-
+ 
 export default function OrgTreeTable() {
   const [treeData, setTreeData] = useState<OrgFlatTreeNode[]>([]);
   const [positions, setPositions] = useState<VacancyDto[]>([]);
-
+ 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+ 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [breadcrumbs, setBreadcrumbs] = useState<OrgFlatTreeNode[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
-
+ 
   const [filters, setFilters] = useState<TableFilters>(DEFAULT_FILTERS);
-
+ 
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string | number;
     type: "Entity" | "Position";
     name: string;
   } | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
-
+ 
   const fetchAllData = async () => {
     try {
       setIsLoading(true);
@@ -54,13 +54,13 @@ export default function OrgTreeTable() {
         positionApi.getAll(),
         staffApi.getAll(),
       ]);
-
+ 
       const mergedPositions: VacancyDto[] = posData.map(pos => {
         const occupant = staffData.find(s => s.vacancyId === pos.vacancyId);
         if (occupant) {
           return {
             ...pos,
-            isFilled: true, 
+            isFilled: true,
             employee: {
               staffId: occupant.staffId,
               fullName: occupant.fullName,
@@ -73,27 +73,45 @@ export default function OrgTreeTable() {
             }
           } as VacancyDto;
         }
-        return pos; 
+        return pos;
       });
-
+ 
       setTreeData(orgData);
-      setPositions(mergedPositions); 
+      setPositions(mergedPositions);
     } catch {
       setError("Unable to connect to the server. Please ensure the backend is running.");
     } finally {
       setIsLoading(false);
     }
   };
-
+ 
   useEffect(() => { fetchAllData(); }, []);
   useEffect(() => { setFilters(DEFAULT_FILTERS); }, [viewMode, breadcrumbs.length]);
-
+ 
   const currentParent = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : null;
-
+ 
+  const isRootNode = (node: OrgFlatTreeNode) => node.parentId == null || node.parentId === 0;
+ 
   const gridNodes = treeData
-    .filter(node => (currentParent ? node.parentId === currentParent.id : node.parentId === null))
+    .filter(node => (currentParent ? node.parentId === currentParent.id : isRootNode(node)))
     .filter(node => node.label !== "Staff");
-
+ 
+  const getDescendantIds = (parentId: number) => {
+    const descendantIds = new Set<number>();
+    const stack = [parentId];
+ 
+    while (stack.length > 0) {
+      const currentId = stack.pop();
+      if (currentId == null) continue;
+      descendantIds.add(currentId);
+      treeData
+        .filter(node => node.parentId === currentId)
+        .forEach(child => stack.push(child.id));
+    }
+ 
+    return descendantIds;
+  };
+ 
   const mappedOldStaff: VacancyDto[] = treeData
     .filter(node => node.label === "Staff")
     .map(staff => {
@@ -122,16 +140,16 @@ export default function OrgTreeTable() {
         },
       };
     });
-
+ 
   const allCombinedData: VacancyDto[] = [...mappedOldStaff, ...positions];
   const openVacancies = allCombinedData.filter(v => !v.isFilled);
-
+ 
   const countryCodeMap = Object.fromEntries(
     treeData
       .filter(n => n.label === "Country" && n.code)
       .map(n => [n.name, n.code as string])
   );
-
+ 
   const scopedData = allCombinedData.filter(item => {
     if (!currentParent) return true;
     if (currentParent.label === "Country") return item.countryName === currentParent.name;
@@ -140,7 +158,7 @@ export default function OrgTreeTable() {
     if (currentParent.label === "Branch") return item.branchName === currentParent.name;
     return item.organizationId === currentParent.id;
   });
-
+ 
   const filteredTableData = scopedData.filter(item => {
     if (filters.country && item.countryName !== filters.country) return false;
     if (filters.company && item.companyName !== filters.company) return false;
@@ -150,12 +168,12 @@ export default function OrgTreeTable() {
     if (filters.status === "vacant" && item.isFilled) return false;
     return true;
   });
-
+ 
   const handleCreateNode = async (data: CreateOrgNodeDto) => {
     await orgTreeApi.createNode(data);
     await fetchAllData();
   };
-
+ 
   /**
    * 🌟 FIXED: Single API call. Passes the count to the backend.
    */
@@ -168,7 +186,7 @@ export default function OrgTreeTable() {
       alert(err.response?.data?.message || "Failed to create position(s).");
     }
   };
-
+ 
   const executeDelete = async () => {
     if (!deleteTarget) return;
     try {
@@ -184,13 +202,13 @@ export default function OrgTreeTable() {
       alert(msg);
     }
   };
-
+ 
   const handleEditEntity = (id: number) => {
     const entity = treeData.find(n => n.id === id);
     if (entity)
       setEditTarget({ type: "Entity", id: entity.id, name: entity.name, code: entity.code, label: entity.label });
   };
-
+ 
   const handleEditPosition = (id: string) => {
     const pos = allCombinedData.find(p => p.vacancyId === id);
     if (pos) {
@@ -213,7 +231,7 @@ export default function OrgTreeTable() {
       });
     }
   };
-
+ 
   const executeEditEntity = async (id: number, data: { name: string; code: string | null }) => {
     const entity = treeData.find(n => n.id === id);
     await orgTreeApi.updateNode(id, {
@@ -224,7 +242,7 @@ export default function OrgTreeTable() {
     });
     await fetchAllData();
   };
-
+ 
   const executeEditPosition = async (id: string, data: { jobTitle: string; department: string }) => {
     const pos = allCombinedData.find(p => p.vacancyId === id);
     await positionApi.update(id, {
@@ -234,7 +252,7 @@ export default function OrgTreeTable() {
     });
     await fetchAllData();
   };
-
+ 
   const executeEditEmployee = async (
     staffId: string,
     data: { fullName: string; email: string; phone: string }
@@ -242,7 +260,7 @@ export default function OrgTreeTable() {
     await staffApi.update(staffId, data);
     await fetchAllData();
   };
-
+ 
   const executeTransferStaff = async (staffId: string, newVacancyId: string) => {
     try {
       await staffApi.transfer(staffId, { newVacancyId });
@@ -252,7 +270,7 @@ export default function OrgTreeTable() {
       throw new Error(msg);
     }
   };
-
+ 
   if (isLoading && treeData.length === 0) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-white">
@@ -260,7 +278,7 @@ export default function OrgTreeTable() {
       </div>
     );
   }
-
+ 
   if (error) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-white">
@@ -268,11 +286,11 @@ export default function OrgTreeTable() {
       </div>
     );
   }
-
+ 
   return (
     <div className="h-full w-full bg-white p-4 lg:p-6 2xl:p-8 font-sans text-slate-900 overflow-y-auto custom-scrollbar">
       <div className="w-full">
-
+ 
         <OrgToolbar
           viewMode={viewMode}
           setViewMode={setViewMode}
@@ -285,7 +303,7 @@ export default function OrgTreeTable() {
           filters={filters}
           onFilterChange={setFilters}
         />
-
+ 
         <AnimatePresence mode="wait">
           <motion.div
             key={`${breadcrumbs.length}-${viewMode}`}
@@ -322,7 +340,7 @@ export default function OrgTreeTable() {
                 </motion.div>
               </div>
             )}
-
+ 
             {/* ── TABLE VIEW ── */}
             {viewMode === "table" && (
               <div className="w-full mb-10 overflow-hidden">
@@ -334,7 +352,7 @@ export default function OrgTreeTable() {
                     {filteredTableData.length} record{filteredTableData.length !== 1 ? "s" : ""}
                   </span>
                 </div>
-
+ 
                 <div className="relative w-full rounded-2xl shadow-sm border border-slate-200 bg-white">
                   <OrgTable
                     nodes={filteredTableData}
@@ -354,17 +372,17 @@ export default function OrgTreeTable() {
             )}
           </motion.div>
         </AnimatePresence>
-
+ 
         {/* ── Modals ── */}
         <AddNodeModal
           isOpen={isAddModalOpen}
           onClose={() => setIsAddModalOpen(false)}
           parentNode={currentParent}
-          treeData={treeData} 
+          treeData={treeData}
           onSubmitNode={handleCreateNode}
           onSubmitPosition={handleCreatePosition}
         />
-
+ 
         <EditRecordModal
           isOpen={!!editTarget}
           onClose={() => setEditTarget(null)}
@@ -375,14 +393,14 @@ export default function OrgTreeTable() {
           onSubmitEmployee={executeEditEmployee}
           onTransferStaff={executeTransferStaff}
         />
-
+ 
         <TypeConfirmDeleteModal
           isOpen={!!deleteTarget && deleteTarget.type === "Entity"}
           onClose={() => setDeleteTarget(null)}
           onConfirm={executeDelete}
           itemName={deleteTarget?.name || ""}
         />
-
+ 
         <SimpleDeleteModal
           isOpen={!!deleteTarget && deleteTarget.type === "Position"}
           onClose={() => setDeleteTarget(null)}

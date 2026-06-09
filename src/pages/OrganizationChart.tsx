@@ -24,15 +24,26 @@ const buildTree = (flatData: OrgFlatTreeNode[]): OrgTreeNode[] => {
 
   flatData.forEach((node) => {
     const currentNode = nodeMap.get(node.id);
-    if (currentNode) {
-      if (node.parentId === null) {
-        rootNodes.push(currentNode);
-      } else {
-        const parentNode = nodeMap.get(node.parentId);
-        if (parentNode) {
-          parentNode.children.push(currentNode);
-        }
-      }
+    if (!currentNode) return;
+
+    const isRoot = node.parentId == null || node.parentId === 0;
+    if (isRoot) {
+      rootNodes.push(currentNode);
+      return;
+    }
+
+    const parentId = node.parentId;
+    if (parentId == null) {
+      rootNodes.push(currentNode);
+      return;
+    }
+
+    const parentNode = nodeMap.get(parentId);
+    if (parentNode) {
+      parentNode.children.push(currentNode);
+    } else {
+      // Preserve nodes even if the parent is missing from the payload.
+      rootNodes.push(currentNode);
     }
   });
 

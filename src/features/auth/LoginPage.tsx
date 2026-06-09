@@ -7,9 +7,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
 import { AuthAPI } from "../../api/auth";
-import { rbacApi } from "../../api/rbacApi";
+import { rbacApi } from "../../api/rbacApi"; // <-- Added import for RBAC
 import { useAuth } from "../../context/AuthContext";
-import api from "../../api/axios";
+import { getApiErrorMessage } from "../../api/apiErrors";
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Username is required." }),
@@ -25,10 +25,7 @@ export default function LoginPage() {
 
   const navigate  = useNavigate();
   const setLogin  = useAuthStore(s => s.setLogin);
-  const setPermissions = useAuthStore(s => s.setPermissions);
-  const setStaffId     = useAuthStore(s => s.setStaffId);
-  const setToken       = useAuthStore(s => s.setToken);
-  const { refreshAccessibleData } = useAuth();
+  const { applySession, refreshAccessibleData } = useAuth();
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -38,9 +35,9 @@ export default function LoginPage() {
     try {
       setApiError(null);
 
-      // 1. Login — username (not email)
+      // 1. Authenticate the User
       const result = await AuthAPI.login({
-        userName: data.username,
+        username: data.username,
         password: data.password,
         rememberMe: true,
       });
@@ -50,47 +47,43 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Store basic auth state immediately
+      // 2. Fetch standard session profile
+      const session = await AuthAPI.getSession();
+
+      // 3. ✨ FETCH THE FILTERED SIDEBAR ✨
+      try {
+        const sidebarData = await rbacApi.getSidebar(); 
+        
+        // Overwrite the default session sidebar with our strictly filtered one
+        if (sidebarData && sidebarData.length > 0) {
+          session.sidebar = sidebarData;
+        }
+      } catch (menuErr) {
+        console.warn("Could not fetch filtered menus, falling back to default.", menuErr);
+      }
+
+      // 4. Apply the fully updated session
+      applySession(session);
+
+      // 5. Update the Zustand auth store
       setLogin(
         result.email ?? data.username,
         result.roles ?? [],
-        result.userName ?? data.username,
-        null,
-        []
+        result.username ?? data.username,
+        session.staffId,
+        session.permissions ?? []
       );
 
-      // 3. Try to get staffId + token from /api/Auth/me (non-blocking)
-      try {
-        const meRes = await api.get('/api/Auth/me');
-        const me = meRes.data as Record<string, unknown>;
-
-        // Save JWT token if backend returns one (used as Bearer fallback)
-        const token = (me?.token ?? me?.Token ?? me?.accessToken ?? me?.AccessToken) as string | null;
-        if (token) setToken(token);
-
-        const sid = (me?.staffId ?? me?.StaffId ?? null) as string | null;
-        if (sid) {
-          setStaffId(sid);
-          // 4. Fetch effective permissions
-          const perms = await rbacApi.getEffectivePermissions(sid);
-          const keys = perms.filter(p => p.hasAccess).map(p => p.featureKey);
-          setPermissions(keys);
-        }
-      } catch { /* non-critical — permissions will be empty, all nav visible */ }
-
-      // 5. Fetch accessible data (permissions + filtered data)
       try {
         await refreshAccessibleData();
-      } catch { /* non-critical — will use empty permissions */ }
+      } catch { /* non-critical */ }
 
-      // 6. Notify sidebar to refetch with new user's permissions
+      // 6. Trigger re-render and navigate
       window.dispatchEvent(new CustomEvent('navigation-updated'));
-
       navigate("/dashboard", { replace: true });
 
     } catch (error: unknown) {
-      const e = error as { response?: { data?: { message?: string } } };
-      setApiError(e.response?.data?.message || "Invalid credentials or server error.");
+      setApiError(getApiErrorMessage(error) || "Invalid credentials or server error.");
     }
   };
 
@@ -98,7 +91,6 @@ export default function LoginPage() {
     <div className={`relative flex min-h-screen w-full items-center justify-center p-4 font-sans overflow-hidden transition-colors duration-700 ${
       isDarkMode ? "bg-[#1A2936]" : "bg-[#F8FAFC]"
     }`}>
-      {/* Background blobs */}
       <motion.div animate={{ scale: [1,1.1,1], x:[0,30,0], y:[0,-20,0] }}
         transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
         className={`absolute -top-[10%] -left-[5%] h-[600px] w-[600px] rounded-full pointer-events-none ${
@@ -117,15 +109,9 @@ export default function LoginPage() {
                      : "shadow-[0_20px_60px_-15px_rgba(0,163,255,0.2)] ring-1 ring-slate-100"
         }`}>
 
-        {/* Left panel */}
         <div className={`relative flex w-full md:w-[45%] flex-col justify-between p-12 overflow-hidden transition-colors duration-700 ${
           isDarkMode ? "bg-[#00A3FF]" : "bg-[#E6F4FF]"
         }`}>
-          <div className={`absolute -top-24 -left-24 rotate-12 pointer-events-none ${isDarkMode ? "text-white/10" : "text-[#00A3FF]/5"}`}>
-            <svg width="400" height="400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 10.5h-5.5V5h-3v5.5H5v3h5.5V19h3v-5.5H19v-3z" />
-            </svg>
-          </div>
           <div className="relative z-10">
             <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
@@ -157,7 +143,6 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Right panel — form */}
         <div className="relative flex w-full md:w-[55%] flex-col justify-center p-10 lg:p-14 bg-white">
           <button onClick={() => setIsDarkMode(!isDarkMode)}
             className="absolute top-6 right-6 p-2.5 rounded-full text-slate-600 hover:text-[#00A3FF] hover:bg-slate-200 transition-all active:scale-95 z-50">
@@ -180,12 +165,8 @@ export default function LoginPage() {
           </AnimatePresence>
 
           <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
-
-            {/* Username */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500 ml-1">
-                Username
-              </label>
+              <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500 ml-1">Username</label>
               <div className={`relative flex items-center overflow-hidden rounded-xl border bg-slate-50 transition-all focus-within:bg-white focus-within:ring-4 ${
                 errors.username
                   ? "border-red-400 focus-within:border-red-500 focus-within:ring-red-500/15"
@@ -198,11 +179,8 @@ export default function LoginPage() {
               {errors.username && <p className="text-xs text-red-500 ml-1">{errors.username.message}</p>}
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500 ml-1">
-                Password
-              </label>
+              <label className="text-[11px] font-bold uppercase tracking-wide text-slate-500 ml-1">Password</label>
               <div className={`relative flex items-center overflow-hidden rounded-xl border bg-slate-50 transition-all focus-within:bg-white focus-within:ring-4 ${
                 errors.password
                   ? "border-red-400 focus-within:border-red-500 focus-within:ring-red-500/15"
@@ -228,7 +206,6 @@ export default function LoginPage() {
                 </span>
               )}
             </motion.button>
-
           </form>
         </div>
       </motion.div>

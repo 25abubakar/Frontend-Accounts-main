@@ -3,10 +3,11 @@ import { persist } from 'zustand/middleware';
 
 interface AuthState {
   userEmail: string | null;
-  userName: string | null;       // loginId used to log in
+  userName: string | null;
   userRoles: string[];
-  staffId: string | null;        // staffId for RBAC permission lookups
-  userPermissions: string[];     // effective feature keys (ALLOW)
+  staffId: string | null;
+  userPermissions: string[];
+  isFullAccess: boolean;
   token: string | null;
   isAuthenticated: boolean;
 
@@ -16,14 +17,13 @@ interface AuthState {
     userName?: string,
     staffId?: string | null,
     permissions?: string[],
-    token?: string | null        // ← accept token from login response
+    token?: string | null
   ) => void;
   setPermissions: (permissions: string[]) => void;
   setStaffId: (staffId: string) => void;
   setToken: (token: string) => void;
+  setIsFullAccess: (value: boolean) => void;
   logout: () => void;
-
-  // Helper: check if user has a permission
   hasPermission: (key: string) => boolean;
 }
 
@@ -35,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
       userRoles: [],
       staffId: null,
       userPermissions: [],
+      isFullAccess: false,
       token: null,
       isAuthenticated: false,
 
@@ -45,18 +46,17 @@ export const useAuthStore = create<AuthState>()(
           userRoles: roles,
           staffId,
           userPermissions: permissions,
-          token,                  // ← persist token so axios interceptor can read it
+          token,
           isAuthenticated: true,
         }),
 
-      setPermissions: (permissions) =>
-        set({ userPermissions: permissions }),
+      setPermissions: permissions => set({ userPermissions: permissions }),
 
-      setStaffId: (staffId) =>
-        set({ staffId }),
+      setStaffId: staffId => set({ staffId }),
 
-      setToken: (token) =>
-        set({ token }),
+      setToken: token => set({ token }),
+
+      setIsFullAccess: isFullAccess => set({ isFullAccess }),
 
       logout: () =>
         set({
@@ -65,18 +65,18 @@ export const useAuthStore = create<AuthState>()(
           userRoles: [],
           staffId: null,
           userPermissions: [],
+          isFullAccess: false,
           token: null,
           isAuthenticated: false,
         }),
 
       hasPermission: (key: string) => {
-        const { userRoles, userPermissions } = get();
-        // SuperAdmin / Admin bypass all checks
+        const { userRoles, userPermissions, isFullAccess } = get();
+        if (isFullAccess) return true;
         const isAdmin = userRoles.some(r =>
-          ["admin", "superadmin", "super admin", "ceo", "dutyceo"].includes(r.toLowerCase())
+          ['admin', 'superadmin', 'super admin', 'ceo', 'dutyceo'].includes(r.toLowerCase())
         );
         if (isAdmin) return true;
-        // Empty permissions = not loaded yet → allow (safe default)
         if (userPermissions.length === 0) return true;
         return userPermissions.includes(key);
       },

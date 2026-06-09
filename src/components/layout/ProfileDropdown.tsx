@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../store/authStore";
+import { useAuth } from "../../context/AuthContext";
 import { AuthAPI } from "../../api/auth";
 
 import api from "../../api/axios"; 
@@ -20,6 +21,7 @@ export default function ProfileDropdown() {
   const navigate = useNavigate();
 
   const { userEmail, userRoles, logout } = useAuthStore();
+  const { clearSession } = useAuth();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -65,7 +67,7 @@ export default function ProfileDropdown() {
       console.error("Logout failed", error);
     } finally {
       logout();
-      // Dispatch event so Sidebar clears its menu items immediately
+      clearSession();
       window.dispatchEvent(new CustomEvent('user-logged-out'));
       navigate("/login", { replace: true });
     }

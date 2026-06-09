@@ -3,7 +3,6 @@ import {
   CheckCircle2,
   FileText,
   Globe2,
-  Loader2,
   Link2,
   Menu as MenuIcon,
   Search,
@@ -52,7 +51,6 @@ function norm(value?: string | null) {
 }
 
 function sortOrgNodes(nodes: OrgNode[]) {
-  // Added safe fallbacks for missing names
   return [...nodes].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
 }
 
@@ -67,6 +65,14 @@ function isDescendantOf(node: OrgNode, ancestorId: number, byId: Map<number, Org
     parentId = byId.get(parentId)?.parentId ?? null;
   }
   return false;
+}
+
+// Safely extract unique IDs to prevent selection bugs
+function getStaffId(staff: any): string {
+  if (!staff) return "";
+  const id = staff.staffId ?? staff.StaffId ?? staff.id ?? staff.Id;
+  if (id !== undefined && id !== null) return id.toString();
+  return (staff.loginId ?? staff.fullName ?? "").toString();
 }
 
 export function NoteForm({
@@ -98,8 +104,8 @@ export function NoteForm({
 
   const [audienceMode, setAudienceMode] = useState<AudienceMode>("ALL");
   const [placementMode, setPlacementMode] = useState<PlacementMode>("EVERYWHERE");
+  
   const [orgNodes, setOrgNodes] = useState<OrgNode[]>([]);
-  const [targetDataLoading, setTargetDataLoading] = useState(false);
   const [targetDataError, setTargetDataError] = useState<string | null>(null);
   
   const [selectedCountryId, setSelectedCountryId] = useState("");
@@ -111,7 +117,9 @@ export function NoteForm({
   const [staffSearch, setStaffSearch] = useState("");
 
   const [staffInSelectedOrg, setStaffInSelectedOrg] = useState<StaffDto[]>([]);
-  const [isFetchingStaff, setIsFetchingStaff] = useState(false);
+  
+  // 🌟 NEW: Lightning Fast Cache (Stores previously fetched staff so it's instant next time)
+  const [staffCache, setStaffCache] = useState<Record<string, StaffDto[]>>({});
 
   useEffect(() => {
     setNoteTypeCode(sourceTypeCode === "ADMIN" ? "INSTRUCTION" : "USER_NOTE");
@@ -127,28 +135,24 @@ export function NoteForm({
     resetStaffTarget();
   }, [sourceTypeCode]);
 
-  // Load only the Org Tree initially.
+  // Load Org Tree silently on mount
   useEffect(() => {
     if (sourceTypeCode !== "ADMIN") return;
     let ignore = false;
     const loadOrgTree = async () => {
       try {
-        setTargetDataLoading(true);
         setTargetDataError(null);
         const orgData = await orgTreeApi.getAll();
-        if (ignore) return;
-        setOrgNodes(toArr<OrgNode>(orgData));
+        if (!ignore) setOrgNodes(toArr<OrgNode>(orgData));
       } catch {
         if (!ignore) setTargetDataError("Unable to load organization tree.");
-      } finally {
-        if (!ignore) setTargetDataLoading(false);
       }
     };
     loadOrgTree();
     return () => { ignore = true; };
   }, [sourceTypeCode]);
 
-  // --- SMART FETCHING ---
+  // --- ⚡ INSTANT SMART FETCHING ⚡ ---
   const deepestSelectedNodeId = selectedDepartmentId || selectedBranchId || selectedCompanyId || selectedCountryId;
 
   useEffect(() => {
@@ -159,25 +163,28 @@ export function NoteForm({
       return;
     }
 
+    const cacheKey = `${deepestSelectedNodeId}-${selectedRole || "ALL"}`;
+    
+    // Instant cache hit! No fetching required.
+    if (staffCache[cacheKey]) {
+      setStaffInSelectedOrg(staffCache[cacheKey]);
+      return;
+    } else {
+      // Clear instantly to avoid showing wrong people while fetching
+      setStaffInSelectedOrg([]);
+    }
+
     let ignore = false;
     const fetchStaffByOrg = async () => {
-      setIsFetchingStaff(true);
       try {
-        // PASS THE ROLE TO THE BACKEND TO UTILIZE YOUR STORED PROCEDURE
         const data = await dataApi.getEmployeesByOrgId(deepestSelectedNodeId, selectedRole || undefined);
-        
         if (!ignore) {
-          setStaffInSelectedOrg(toArr<StaffDto>(data));
+          const arr = toArr<StaffDto>(data);
+          setStaffCache(prev => ({ ...prev, [cacheKey]: arr }));
+          setStaffInSelectedOrg(arr);
         }
       } catch (err) {
-        if (!ignore) {
-          console.error("Failed to fetch staff:", err);
-          setStaffInSelectedOrg([]);
-        }
-      } finally {
-        if (!ignore) {
-          setIsFetchingStaff(false);
-        }
+        if (!ignore) setStaffInSelectedOrg([]);
       }
     };
 
@@ -231,10 +238,9 @@ export function NoteForm({
 
   const staffOptions = useMemo(
     () => {
-      // The backend handles the role filtering now, but we still apply safe fallbacks here just in case
       return [...staffInSelectedOrg].sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
     },
-    [staffInSelectedOrg] // Removed selectedRole dependency since backend handles it
+    [staffInSelectedOrg] 
   );
 
   const filteredStaffOptions = useMemo(
@@ -247,12 +253,12 @@ export function NoteForm({
 
   const selectedStaff = useMemo(
     () => staffInSelectedOrg
-      .filter(s => selectedStaffIds.includes(s.staffId))
+      .filter(s => selectedStaffIds.includes(getStaffId(s)))
       .sort((a, b) => (a.fullName || "").localeCompare(b.fullName || "")),
     [staffInSelectedOrg, selectedStaffIds]
   );
 
-  const visibleStaffIds = filteredStaffOptions.map(s => s.staffId);
+  const visibleStaffIds = filteredStaffOptions.map(getStaffId);
   const allVisibleSelected = visibleStaffIds.length > 0 && visibleStaffIds.every(id => selectedStaffIds.includes(id));
 
   function resetStaffTarget() {
@@ -317,7 +323,7 @@ export function NoteForm({
   }));
 
   const audienceOptions = [
-    { mode: "ALL"   as const, label: "Everyone",       count: "All users",                           Icon: Users2       },
+    { mode: "ALL"   as const, label: "Everyone",       count: "All users",                        Icon: Users2       },
     { mode: "STAFF" as const, label: "Selected staff", count: `${selectedStaffIds.length} selected`, Icon: UserRoundCheck },
   ];
   const placementOptions = [
@@ -383,7 +389,6 @@ export function NoteForm({
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="mb-3 flex items-center justify-between gap-2">
                   <label className={`${LBL} mb-0`}>Choose Staff</label>
-                  {targetDataLoading && <span className="text-[10px] font-bold text-blue-500">Loading Tree...</span>}
                 </div>
                 {targetDataError && (
                   <div className="mb-3 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600">{targetDataError}</div>
@@ -393,7 +398,7 @@ export function NoteForm({
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <label className={LBL}>Country</label>
-                    <select value={selectedCountryId} className={INP} disabled={targetDataLoading}
+                    <select value={selectedCountryId} className={INP}
                       onChange={e => { 
                         setSelectedCountryId(e.target.value); 
                         setSelectedCompanyId(""); setSelectedBranchId(""); 
@@ -407,7 +412,7 @@ export function NoteForm({
                   {selectedCountryId && (
                     <div>
                       <label className={LBL}>Company</label>
-                      <select value={selectedCompanyId} className={INP} disabled={targetDataLoading}
+                      <select value={selectedCompanyId} className={INP}
                         onChange={e => { 
                           setSelectedCompanyId(e.target.value); 
                           setSelectedBranchId(""); setSelectedDepartmentId(""); 
@@ -422,7 +427,7 @@ export function NoteForm({
                   {selectedCompanyId && (
                     <div>
                       <label className={LBL}>Branch / Sub Branch</label>
-                      <select value={selectedBranchId} className={INP} disabled={targetDataLoading}
+                      <select value={selectedBranchId} className={INP}
                         onChange={e => { 
                           setSelectedBranchId(e.target.value); 
                           setSelectedDepartmentId(""); setSelectedRole(""); setStaffSearch(""); 
@@ -436,7 +441,7 @@ export function NoteForm({
                   {selectedBranchId && (
                     <div>
                       <label className={LBL}>Department</label>
-                      <select value={selectedDepartmentId} className={INP} disabled={targetDataLoading}
+                      <select value={selectedDepartmentId} className={INP}
                         onChange={e => { 
                           setSelectedDepartmentId(e.target.value); 
                           setSelectedRole(""); setStaffSearch(""); 
@@ -450,7 +455,7 @@ export function NoteForm({
                   {selectedDepartmentId && (
                     <div>
                       <label className={LBL}>Role / Job Title</label>
-                      <select value={selectedRole} className={INP} disabled={isFetchingStaff}
+                      <select value={selectedRole} className={INP}
                         onChange={e => { 
                           setSelectedRole(e.target.value); 
                           setStaffSearch(""); 
@@ -468,7 +473,7 @@ export function NoteForm({
                       <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                       <input value={staffSearch} onChange={e => setStaffSearch(e.target.value)}
                         placeholder="Search staff..." 
-                        disabled={isFetchingStaff || !deepestSelectedNodeId}
+                        disabled={!deepestSelectedNodeId}
                         className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-8 pr-8 text-xs font-semibold text-slate-700 outline-none focus:border-blue-400 focus:bg-white disabled:cursor-not-allowed disabled:opacity-50" />
                       {staffSearch && (
                         <button type="button" onClick={() => setStaffSearch("")}
@@ -478,7 +483,7 @@ export function NoteForm({
                       )}
                     </div>
                     <button type="button" onClick={allVisibleSelected ? clearVisibleStaff : selectVisibleStaff}
-                      disabled={visibleStaffIds.length === 0 || isFetchingStaff}
+                      disabled={visibleStaffIds.length === 0}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
                       {allVisibleSelected ? "Clear shown" : "Select shown"}
                     </button>
@@ -487,35 +492,37 @@ export function NoteForm({
                   <div className="max-h-44 overflow-y-auto p-2">
                     {!deepestSelectedNodeId ? (
                       <div className="px-2 py-5 text-center text-xs font-semibold text-slate-400">Please select an organization level above.</div>
-                    ) : isFetchingStaff ? (
-                      <div className="flex items-center justify-center gap-2 px-2 py-5 text-center text-xs font-semibold text-blue-500">
-                        <Loader2 size={16} className="animate-spin" /> Fetching employees...
-                      </div>
                     ) : filteredStaffOptions.length === 0 ? (
                       <div className="px-2 py-5 text-center text-xs font-semibold text-slate-400">No staff found for the selected criteria.</div>
                     ) : (
                       <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                        {filteredStaffOptions.map(staff => (
-                          <label key={staff.staffId}
-                            className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
-                            <input type="checkbox" checked={selectedStaffIds.includes(staff.staffId)}
-                              onChange={() => toggleStaffTarget(staff.staffId)}
-                              className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
-                            <span className="min-w-0 flex-1 truncate">{staff.fullName}{staff.loginId ? ` (${staff.loginId})` : ""}</span>
-                          </label>
-                        ))}
+                        {filteredStaffOptions.map(staff => {
+                          const sId = getStaffId(staff);
+                          return (
+                            <label key={sId}
+                              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                              <input type="checkbox" checked={selectedStaffIds.includes(sId)}
+                                onChange={() => toggleStaffTarget(sId)}
+                                className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
+                              <span className="min-w-0 flex-1 truncate">{staff.fullName}{staff.loginId ? ` (${staff.loginId})` : ""}</span>
+                            </label>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 </div>
                 {selectedStaff.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
-                    {selectedStaff.slice(0, 8).map(staff => (
-                      <button key={staff.staffId} type="button" onClick={() => toggleStaffTarget(staff.staffId)}
-                        className="inline-flex max-w-48 items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100">
-                        <span className="truncate">{staff.fullName}</span><X size={11} className="shrink-0" />
-                      </button>
-                    ))}
+                    {selectedStaff.slice(0, 8).map(staff => {
+                      const sId = getStaffId(staff);
+                      return (
+                        <button key={sId} type="button" onClick={() => toggleStaffTarget(sId)}
+                          className="inline-flex max-w-48 items-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700 hover:bg-blue-100">
+                          <span className="truncate">{staff.fullName}</span><X size={11} className="shrink-0" />
+                        </button>
+                      );
+                    })}
                     {selectedStaff.length > 8 && (
                       <span className="rounded-lg bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">+{selectedStaff.length - 8} more</span>
                     )}

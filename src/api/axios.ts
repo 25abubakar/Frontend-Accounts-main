@@ -1,17 +1,16 @@
 import axios from 'axios';
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5099';
+const BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  'http://localhost:5099';
 
 const api = axios.create({
   baseURL: BASE_URL,
-  withCredentials: true,          // sends the ASP.NET Identity cookie automatically
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// ── Request interceptor ───────────────────────────────────────────────────
-// Backend uses cookie-based auth (ASP.NET Identity).
-// withCredentials: true already handles cookies automatically.
-// Additionally attach a Bearer token if one was saved (JWT fallback).
 api.interceptors.request.use(config => {
   try {
     const raw = localStorage.getItem('lal-portal-auth');
@@ -20,34 +19,33 @@ api.interceptors.request.use(config => {
       const token = state?.state?.token;
       if (token) {
         config.headers = config.headers ?? {};
-        config.headers['Authorization'] = `Bearer ${token}`;
+        config.headers.Authorization = `Bearer ${token}`;
       }
     }
-  } catch { /* localStorage unavailable or JSON invalid — continue without header */ }
+  } catch { /* ignore */ }
   return config;
 });
 
-// ── Response interceptor ──────────────────────────────────────────────────
 api.interceptors.response.use(
   response => response,
   error => {
     const url: string = error.config?.url ?? '';
     const isAuthCall =
-      url.includes('/api/Auth/login') ||
-      url.includes('/api/Auth/logout') ||
-      url.includes('/api/Auth/register');
+      /\/api\/auth\/(login|logout|register)/i.test(url) ||
+      /\/api\/Auth\/(login|logout|register)/i.test(url);
 
     const status = error.response?.status;
 
-    // 401 — session expired → clear state and redirect to login
     if (status === 401 && !isAuthCall) {
-      try { localStorage.removeItem('lal-portal-auth'); } catch { /* ignore */ }
-      if (!window.location.pathname.includes('/login')) {
+      try {
+        localStorage.removeItem('lal-portal-auth');
+      } catch { /* ignore */ }
+      const path = window.location.pathname;
+      if (!path.includes('/login') && !path.includes('/register')) {
         window.location.href = '/login';
       }
     }
 
-    // 403 — permission denied → dispatch event for toast (non-blocking)
     if (status === 403) {
       const msg =
         error.response?.data?.message ||

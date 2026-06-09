@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { ChevronDown, Loader2, Plus, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { rbacApi, type SidebarItem } from '../../api/rbacApi';
+import type { SidebarItem } from '../../types/api';
+import { rbacApi } from '../../api/rbacApi';
 import AddMenuModal from './AddMenuModal';
 import { useAuthStore } from '../../store/authStore';
+import { useAuth } from '../../context/AuthContext';
 import { dedupeMenuTreeByRoute } from '../../lib/utils';
 
 import {
@@ -40,6 +42,7 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
 
   const isAuthenticated = useAuthStore(s => s.isAuthenticated);
   const userRoles       = useAuthStore(s => s.userRoles);
+  const { session }     = useAuth();
 
   // Admin/CEO bypass all menu filtering
   const isAdmin = userRoles.some(r =>
@@ -51,10 +54,11 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
       setLoading(true);
       setApiError(false);
 
-      // ── ONLY source: GET /api/rbac/sidebar ──────────────────────────────
-      // Backend filters by user permissions — trust it completely.
-      // Empty [] = user has no access = show nothing (correct behaviour).
-      const items = await rbacApi.getSidebar();
+      const fromSession = session?.sidebar;
+      const items =
+        fromSession && fromSession.length > 0
+          ? fromSession
+          : await rbacApi.getSidebar();
       setMenuItems(dedupeMenuTreeByRoute(items));
 
     } catch (err) {
@@ -64,7 +68,7 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session?.sidebar]);
 
   useEffect(() => {
     if (isAuthenticated) fetchMenu();
@@ -80,7 +84,7 @@ export default function Sidebar({ themeColor, onNavClick }: SidebarProps) {
       window.removeEventListener('navigation-updated', fetchMenu);
       window.removeEventListener('user-logged-out', handleLogout);
     };
-  }, [fetchMenu, isAuthenticated]);
+  }, [fetchMenu, isAuthenticated, session?.sidebar]);
 
   const toggleMenu = (id: number) => setOpenMenuId(openMenuId === id ? null : id);
 

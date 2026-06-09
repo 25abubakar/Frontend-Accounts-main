@@ -1,25 +1,26 @@
-// src/api/rbacApi.ts
-// RBAC — Role-Based Access Control endpoints
 import api from './axios';
+import { API } from './endpoints';
+import { toArray } from './apiHelpers';
 
-// ── Types ─────────────────────────────────────────────────────────────────
+export type { SidebarItem } from '../types/api';
 
-export interface SidebarItem {
+export interface MenuPermissionNode {
   id: number;
   title: string;
-  icon: string | null;
-  route: string | null;
+  icon?: string | null;
+  route?: string | null;
   sortOrder: number;
-  children: SidebarItem[];
+  featureKeys?: string[];
+  children?: MenuPermissionNode[];
 }
 
-export type OverrideStatus = "ALLOW" | "DENY";
+export type OverrideStatus = 'ALLOW' | 'DENY';
 
 export interface PermissionOverride {
   featureKey: string;
   status: OverrideStatus;
   reason: string | null;
-  source: "UserAllow" | "UserDeny" | "RoleDefault" | "Matrix" | "Denied";
+  source: 'UserAllow' | 'UserDeny' | 'RoleDefault' | 'Matrix' | 'Denied';
 }
 
 export interface EffectivePermission {
@@ -27,49 +28,72 @@ export interface EffectivePermission {
   featureName: string;
   module: string;
   hasAccess: boolean;
-  source: "UserAllow" | "UserDeny" | "RoleDefault" | "Matrix" | "Denied";
+  source: PermissionOverride['source'];
 }
 
-// ── API ───────────────────────────────────────────────────────────────────
-
 export const rbacApi = {
-
-  // GET /api/rbac/sidebar
-  // Backend filters menus by user's MENU_ permissions from their access group
-  getSidebar: async (): Promise<SidebarItem[]> => {
-    const { data } = await api.get('/api/rbac/sidebar');
-    if (Array.isArray(data)) return data;
-    const d = data as Record<string, unknown>;
-    return (d?.$values ?? d?.data ?? []) as SidebarItem[];
+  getSidebar: async () => {
+    const { data } = await api.get(API.rbac.sidebar);
+    return toArray<import('../types/api').SidebarItem>(data);
   },
 
-  // GET /api/rbac/staff/{staffId}/effective-permissions
-  // Returns all features with hasAccess + source for the staff member
+  hasAccess: async (staffId: string, featureKey: string): Promise<boolean> => {
+    const { data } = await api.get(API.rbac.staffHasAccess(staffId, featureKey));
+    if (typeof data === 'boolean') return data;
+    return !!(data as { hasAccess?: boolean })?.hasAccess;
+  },
+
   getEffectivePermissions: async (staffId: string): Promise<EffectivePermission[]> => {
-    const { data } = await api.get(`/api/rbac/staff/${staffId}/effective-permissions`);
-    if (Array.isArray(data)) return data;
-    const d = data as Record<string, unknown>;
-    return (d?.$values ?? d?.data ?? []) as EffectivePermission[];
+    const { data } = await api.get(API.rbac.staffEffectivePermissions(staffId));
+    return toArray<EffectivePermission>(data);
   },
 
-  // PUT /api/rbac/staff/{staffId}/overrides/{featureKey}
-  // Set explicit ALLOW or DENY override
-  setOverride: async (staffId: string, featureKey: string, status: OverrideStatus, reason?: string): Promise<void> => {
-    await api.put(`/api/rbac/staff/${staffId}/overrides/${featureKey}`, { status, reason: reason ?? null });
-  },
-
-  // DELETE /api/rbac/staff/{staffId}/overrides/{featureKey}
-  // Remove override — reverts to role default
-  removeOverride: async (staffId: string, featureKey: string): Promise<void> => {
-    await api.delete(`/api/rbac/staff/${staffId}/overrides/${featureKey}`);
-  },
-
-  // GET /api/rbac/staff/{staffId}/overrides
-  // Get all overrides for a staff member
   getOverrides: async (staffId: string): Promise<PermissionOverride[]> => {
-    const { data } = await api.get(`/api/rbac/staff/${staffId}/overrides`);
-    if (Array.isArray(data)) return data;
-    const d = data as Record<string, unknown>;
-    return (d?.$values ?? d?.data ?? []) as PermissionOverride[];
+    const { data } = await api.get(API.rbac.staffOverrides(staffId));
+    return toArray<PermissionOverride>(data);
+  },
+
+  setOverride: async (
+    staffId: string,
+    featureKey: string,
+    status: 'ALLOW' | 'DENY',
+    reason?: string
+  ): Promise<void> => {
+    await api.put(API.rbac.staffOverride(staffId, featureKey), {
+      status,
+      reason: reason ?? 'Updated from portal',
+    });
+  },
+
+  removeOverride: async (staffId: string, featureKey: string): Promise<void> => {
+    await api.delete(API.rbac.staffOverride(staffId, featureKey));
+  },
+
+  getMenuPermissions: async (): Promise<MenuPermissionNode[]> => {
+    const { data } = await api.get(API.rbac.menuPermissions);
+    return toArray<MenuPermissionNode>(data);
+  },
+
+  getMenuFeatureKeys: async (menuId: number): Promise<string[]> => {
+    const { data } = await api.get(API.rbac.menuFeatureKeys(menuId));
+    return toArray<string>(data);
+  },
+
+  grantMenu: async (staffId: string, menuId: number, reason: string): Promise<void> => {
+    await api.post(API.rbac.grantMenu(staffId, menuId), { reason });
+  },
+
+  revokeMenu: async (staffId: string, menuId: number): Promise<void> => {
+    await api.post(API.rbac.revokeMenu(staffId, menuId), {});
+  },
+
+  getMatrix: async (deptId: string | number) => {
+    const { data } = await api.get(API.rbac.matrix(deptId));
+    return data;
+  },
+
+  seedFeatures: async () => {
+    const { data } = await api.post(API.rbac.seedFeatures);
+    return data;
   },
 };

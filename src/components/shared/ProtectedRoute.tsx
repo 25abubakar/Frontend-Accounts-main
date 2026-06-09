@@ -56,7 +56,7 @@ export function PermissionProtectedRoute({
 
   // Check single permission
   if (requiredPermission && !hasPermission(requiredPermission)) {
-    return <Navigate to="/access-denied" state={{ from: location }} replace />;
+    return <Navigate to="/403" state={{ from: location }} replace />;
   }
 
   // Check multiple permissions
@@ -66,7 +66,7 @@ export function PermissionProtectedRoute({
       : hasAnyPermission(requiredPermissions);
 
     if (!hasAccess) {
-      return <Navigate to="/access-denied" state={{ from: location }} replace />;
+      return <Navigate to="/403" state={{ from: location }} replace />;
     }
   }
 

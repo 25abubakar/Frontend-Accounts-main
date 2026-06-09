@@ -36,12 +36,12 @@ export default function Can({
   children,
   fallback = null,
 }: CanProps) {
-  const { hasPermission, hasAnyPermission, hasAllPermissions } = useAuth();
+  const { can, hasAnyPermission, hasAllPermissions } = useAuth();
 
   let hasAccess = false;
 
   if (permission) {
-    hasAccess = hasPermission(permission);
+    hasAccess = can(permission);
   } else if (anyPermission) {
     hasAccess = hasAnyPermission(anyPermission);
   } else if (allPermissions) {

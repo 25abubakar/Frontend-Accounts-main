@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  X, Bell, Calendar, Loader2, Info, AlertCircle,
-  CheckCircle2, Pin, MessageSquare, ShieldCheck
+  X, Bell, Calendar, Loader2, AlertCircle,
+  CheckCircle2, Pin, ShieldCheck
 } from "lucide-react";
 import { NoteForm } from "./NoteForm";
 import { useLookups } from "../hooks/useLookups";

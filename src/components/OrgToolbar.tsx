@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import type { OrgFlatTreeNode, VacancyDto } from "../types";
 import { getIcon } from "../utils/orgGroupTreeDesign";
-
+ 
 export interface TableFilters {
   country: string;
   company: string;
@@ -13,7 +13,7 @@ export interface TableFilters {
   jobTitle: string;
   status: "all" | "active" | "vacant";
 }
-
+ 
 interface OrgToolbarProps {
   viewMode: "grid" | "table";
   setViewMode: (mode: "grid" | "table") => void;
@@ -27,7 +27,7 @@ interface OrgToolbarProps {
   filters: TableFilters;
   onFilterChange: (filters: TableFilters) => void;
 }
-
+ 
 const SelectFilter = ({
   label,
   value,
@@ -56,12 +56,12 @@ const SelectFilter = ({
     <ChevronDown size={12} className="pointer-events-none absolute right-2.5 text-slate-400" />
   </div>
 );
-
+ 
 export default function OrgToolbar({
   viewMode, setViewMode, breadcrumbs, setBreadcrumbs, currentParent, onAddClick,
   treeData, allData, filters, onFilterChange,
 }: OrgToolbarProps) {
-
+ 
   const getAddButtonText = () => {
     if (!currentParent) return "Country";
     switch (currentParent.label) {
@@ -72,7 +72,7 @@ export default function OrgToolbar({
       default: return "Entity";
     }
   };
-
+ 
   // ── Helper to trace if an empty node belongs to a selected parent ──
   const hasAncestorName = (node: OrgFlatTreeNode, ancestorName: string): boolean => {
     let current: OrgFlatTreeNode | undefined = node;
@@ -82,17 +82,17 @@ export default function OrgToolbar({
     }
     return false;
   };
-
+ 
   // ── Derive unique filter options from BOTH live data AND structural tree ──
   const unique = (arr: (string | null | undefined)[]) =>
     Array.from(new Set(arr.filter((v): v is string => !!v && v !== "—"))).sort();
-
+ 
   // 1. Countries (Pulls every empty country + filled countries)
   const countryOptions = unique([
     ...treeData.filter(n => n.label === "Country").map(n => n.name),
     ...allData.map(d => d.countryName)
   ]);
-
+ 
   // 2. Companies (Cascades perfectly based on country selection)
   const companyOptions = unique([
     ...treeData
@@ -103,7 +103,7 @@ export default function OrgToolbar({
         .filter(d => !filters.country || d.countryName === filters.country)
         .map(d => d.companyName)
   ]);
-
+ 
   // 3. Branches (Cascades based on country and company)
   const branchOptions = unique([
     ...treeData
@@ -116,7 +116,7 @@ export default function OrgToolbar({
         .filter(d => !filters.company || d.companyName === filters.company)
         .map(d => d.branchName)
   ]);
-
+ 
   // 4. Job Titles (Only exist in allData, empty nodes don't have jobs yet)
   const jobTitleOptions = unique(
     allData
@@ -125,14 +125,14 @@ export default function OrgToolbar({
       .filter(d => !filters.branch || d.branchName === filters.branch)
       .map(d => d.jobTitle)
   );
-
+ 
   const hasActiveFilters =
     filters.country || filters.company || filters.branch ||
     filters.jobTitle || filters.status !== "all";
-
+ 
   const clearAll = () =>
     onFilterChange({ country: "", company: "", branch: "", jobTitle: "", status: "all" });
-
+ 
   const setCountry = (v: string) =>
     onFilterChange({ country: v, company: "", branch: "", jobTitle: "", status: filters.status });
   const setCompany = (v: string) =>
@@ -143,7 +143,7 @@ export default function OrgToolbar({
     onFilterChange({ ...filters, jobTitle: v });
   const setStatus = (v: string) =>
     onFilterChange({ ...filters, status: v as TableFilters["status"] });
-
+ 
   return (
     <>
       {/* ── Header row ─────────────────────────────────────────────────── */}
@@ -157,7 +157,7 @@ export default function OrgToolbar({
               Organizational Structure
             </p>
           </div>
-
+ 
           {/* View mode toggle */}
           <div className="flex items-center rounded-xl bg-white p-1 border border-slate-200 shadow-sm">
             {(["grid", "table"] as const).map(mode => (
@@ -181,7 +181,7 @@ export default function OrgToolbar({
             ))}
           </div>
         </div>
-
+ 
         {/* Breadcrumb trail */}
         <div className="mt-5 flex flex-wrap items-center gap-2 text-sm font-bold">
           <button
@@ -212,7 +212,7 @@ export default function OrgToolbar({
           ))}
         </div>
       </div>
-
+ 
       {/* ── Action bar (back + add) ─────────────────────────────────────── */}
       <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-3 ring-1 ring-slate-200/50 shadow-sm">
         <motion.button
@@ -234,7 +234,7 @@ export default function OrgToolbar({
           Add {getAddButtonText()}
         </motion.button>
       </div>
-
+ 
       {/* ── Filter bar — only in table mode ────────────────────────────── */}
       {viewMode === "table" && (
         <motion.div
@@ -247,7 +247,7 @@ export default function OrgToolbar({
           <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-400 mr-1">
             <Filter size={13} /> Filters
           </div>
-
+ 
           {/* Country */}
           <SelectFilter
             label="All Countries"
@@ -255,7 +255,7 @@ export default function OrgToolbar({
             options={countryOptions}
             onChange={setCountry}
           />
-
+ 
           {/* Company — cascades from country */}
           <SelectFilter
             label="All Companies"
@@ -264,7 +264,7 @@ export default function OrgToolbar({
             onChange={setCompany}
             disabled={companyOptions.length === 0}
           />
-
+ 
           {/* Branch — cascades from company */}
           <SelectFilter
             label="All Branches"
@@ -273,7 +273,7 @@ export default function OrgToolbar({
             onChange={setBranch}
             disabled={branchOptions.length === 0}
           />
-
+ 
           {/* Job Title / Role — cascades from branch */}
           <SelectFilter
             label="All Roles"
@@ -282,7 +282,7 @@ export default function OrgToolbar({
             onChange={setJobTitle}
             disabled={jobTitleOptions.length === 0}
           />
-
+ 
           {/* Status */}
           <div className="relative flex items-center">
             <select
@@ -296,7 +296,7 @@ export default function OrgToolbar({
             </select>
             <ChevronDown size={12} className="pointer-events-none absolute right-2.5 text-slate-400" />
           </div>
-
+ 
           {/* Active filter chips */}
           <div className="flex flex-wrap items-center gap-1.5 ml-1">
             {filters.country && (
@@ -334,7 +334,7 @@ export default function OrgToolbar({
               </span>
             )}
           </div>
-
+ 
           {/* Clear all */}
           {hasActiveFilters && (
             <button

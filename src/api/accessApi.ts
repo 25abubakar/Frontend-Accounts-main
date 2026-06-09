@@ -1,5 +1,6 @@
-// src/api/accessApi.ts
+// Access — /api/access/*
 import api from './axios';
+import { API } from './endpoints';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -106,13 +107,13 @@ export const accessApi = {
 
   // GET /api/access/features
   getAllFeatures: async (): Promise<FeatureDto[]> => {
-    const { data } = await api.get('/api/access/features');
+    const { data } = await api.get(API.access.features);
     return toArray<FeatureDto>(data);
   },
 
   // GET /api/access/features/module/{module}
   getFeaturesByModule: async (module: string): Promise<FeatureDto[]> => {
-    const { data } = await api.get(`/api/access/features/module/${encodeURIComponent(module)}`);
+    const { data } = await api.get(API.access.featuresByModule(module));
     return toArray<FeatureDto>(data);
   },
 
@@ -120,7 +121,7 @@ export const accessApi = {
 
   // GET /api/access/groups
   getGroups: async (): Promise<AccessGroupDto[]> => {
-    const { data } = await api.get('/api/access/groups');
+    const { data } = await api.get(API.access.groups);
     const arr = toArray<AccessGroupDto>(data);
     // Normalize each group's features array
     return arr.map(g => ({
@@ -131,13 +132,13 @@ export const accessApi = {
 
   // POST /api/access/groups
   createGroup: async (payload: CreateGroupDto): Promise<AccessGroupDto> => {
-    const { data } = await api.post<AccessGroupDto>('/api/access/groups', payload);
+    const { data } = await api.post<AccessGroupDto>(API.access.groups, payload);
     return data;
   },
 
   // GET /api/access/groups/{id}
   getGroupById: async (id: number): Promise<AccessGroupDto> => {
-    const { data } = await api.get<AccessGroupDto>(`/api/access/groups/${id}`);
+    const { data } = await api.get<AccessGroupDto>(API.access.group(id));
     return {
       ...data,
       features: toArray<string>(data.features as unknown),
@@ -146,13 +147,13 @@ export const accessApi = {
 
   // PUT /api/access/groups/{id}
   updateGroup: async (id: number, payload: CreateGroupDto): Promise<AccessGroupDto> => {
-    const { data } = await api.put<AccessGroupDto>(`/api/access/groups/${id}`, payload);
+    const { data } = await api.put<AccessGroupDto>(API.access.group(id), payload);
     return data;
   },
 
   // DELETE /api/access/groups/{id}
   deleteGroup: async (id: number): Promise<void> => {
-    await api.delete(`/api/access/groups/${id}`);
+    await api.delete(API.access.group(id));
   },
 
   // PUT /api/access/groups/{id}/features
@@ -162,31 +163,15 @@ export const accessApi = {
     const menuKeys    = payload.featureKeys.filter(k => k.startsWith('MENU_'));
 
     // Save regular features to backend
-    const { data } = await api.put(`/api/access/groups/${id}/features`, {
-      featureKeys: regularKeys,
+    const { data } = await api.put(API.access.groupFeatures(id), {
+      featureKeys: [...regularKeys, ...menuKeys],
     });
-
-    // Save MENU_ features separately if backend supports it
-    // Try the menu-features endpoint; if it fails, fall back silently
-    if (menuKeys.length > 0) {
-      try {
-        await api.put(`/api/access/groups/${id}/menu-features`, { menuKeys });
-      } catch {
-        // Backend may not have this endpoint yet — store in regular features as fallback
-        try {
-          await api.put(`/api/access/groups/${id}/features`, {
-            featureKeys: [...regularKeys, ...menuKeys],
-          });
-        } catch { /* ignore */ }
-      }
-    }
-
     return data;
   },
 
   // POST /api/access/groups/{id}/sync — Manual sync group features to department matrix
   syncGroupToMatrix: async (id: number): Promise<{ success: boolean; message: string; staffSynced: number; permissionsSynced: number }> => {
-    const { data } = await api.post(`/api/access/groups/${id}/sync`);
+    const { data } = await api.post(API.access.groupSync(id));
     return data;
   },
 
@@ -194,24 +179,24 @@ export const accessApi = {
 
   // GET /api/access/staff/{staffId}/groups
   getStaffGroups: async (staffId: string): Promise<StaffGroupDto[]> => {
-    const { data } = await api.get(`/api/access/staff/${staffId}/groups`);
+    const { data } = await api.get(API.access.staffGroups(staffId));
     return toArray<StaffGroupDto>(data);
   },
 
   // POST /api/access/staff/{staffId}/groups/{groupId}
   addStaffToGroup: async (staffId: string, groupId: number): Promise<void> => {
-    await api.post(`/api/access/staff/${staffId}/groups/${groupId}`);
+    await api.post(API.access.staffGroup(staffId, groupId));
   },
 
   // DELETE /api/access/staff/{staffId}/groups/{groupId}
   removeStaffFromGroup: async (staffId: string, groupId: number): Promise<void> => {
-    await api.delete(`/api/access/staff/${staffId}/groups/${groupId}`);
+    await api.delete(API.access.staffGroup(staffId, groupId));
   },
 
   // GET /api/access/staff/{staffId}/permissions
   // Returns array of featureKeys (strings) OR array of FeatureDto
   getStaffPermissions: async (staffId: string): Promise<string[]> => {
-    const { data } = await api.get(`/api/access/staff/${staffId}/permissions`);
+    const { data } = await api.get(API.access.staffPermissions(staffId));
     // Backend may return { staffId, permissions: [...] } or plain array
     if (data && typeof data === 'object' && !Array.isArray(data)) {
       const obj = data as Record<string, unknown>;
@@ -225,7 +210,7 @@ export const accessApi = {
 
   // GET /api/access/department/{deptId}/matrix
   getDeptMatrix: async (deptId: string): Promise<MatrixResponse> => {
-    const { data } = await api.get(`/api/access/department/${deptId}/matrix`);
+    const { data } = await api.get(API.access.deptMatrix(deptId));
     // Normalize: backend may return the object directly or wrapped
     if (data && typeof data === 'object' && !Array.isArray(data)) {
       const obj = data as Record<string, unknown>;
@@ -242,27 +227,27 @@ export const accessApi = {
 
   // GET /api/access/department/{deptId}/persons
   getDeptPersons: async (deptId: string): Promise<DeptPersonDto[]> => {
-    const { data } = await api.get(`/api/access/department/${deptId}/persons`);
+    const { data } = await api.get(API.access.deptPersons(deptId));
     return toArray<DeptPersonDto>(data);
   },
 
   // POST /api/access/department/{deptId}/matrix  (bulk save)
   saveDeptMatrix: async (deptId: string, payload: SaveMatrixDto): Promise<void> => {
-    await api.post(`/api/access/department/${deptId}/matrix`, payload);
+    await api.post(API.access.deptMatrix(deptId), payload);
   },
 
   // PUT /api/access/staff/{staffId}/feature/{featureKey}
   toggleFeature: async (staffId: string, featureKey: string, hasAccess: boolean): Promise<void> => {
-    await api.put(`/api/access/staff/${staffId}/feature/${featureKey}`, { hasAccess });
+    await api.put(API.access.staffFeature(staffId, featureKey), { hasAccess });
   },
 
   // POST /api/access/staff/{staffId}/grant-all?deptId={deptId}
   grantAll: async (staffId: string, deptId: string): Promise<void> => {
-    await api.post(`/api/access/staff/${staffId}/grant-all`, null, { params: { deptId } });
+    await api.post(API.access.staffGrantAll(staffId), null, { params: { deptId } });
   },
 
   // DELETE /api/access/staff/{staffId}/revoke-all
   revokeAll: async (staffId: string): Promise<void> => {
-    await api.delete(`/api/access/staff/${staffId}/revoke-all`);
+    await api.delete(API.access.staffRevokeAll(staffId));
   },
 };

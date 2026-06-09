@@ -3,9 +3,9 @@ import { Outlet, NavLink } from "react-router-dom";
 import Sidebar from "../components/layout/Sidebar";
 import Navbar from "../components/layout/Navbar";
 import { LayoutDashboard, Users, Briefcase, Settings, Menu, ShieldX, X } from "lucide-react";
-import { useAuthStore } from "../store/authStore";
-import { rbacApi } from "../api/rbacApi";
+import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
+import LoginInstructionPopups from "../components/auth/LoginInstructionPopups";
 
 const BOTTOM_NAV = [
   { label: "Overview",  path: "/dashboard",       icon: LayoutDashboard },
@@ -19,18 +19,8 @@ export default function DashboardLayout() {
   const [themeColor, setThemeColor]       = useState("bg-blue-600");
   const [permDeniedMsg, setPermDeniedMsg] = useState<string | null>(null);
 
-  const { isAuthenticated, staffId, setPermissions } = useAuthStore();
-
-  // ── Fetch effective permissions after login ───────────────────────────
-  useEffect(() => {
-    if (!isAuthenticated || !staffId) return;
-    rbacApi.getEffectivePermissions(staffId)
-      .then(perms => {
-        const keys = perms.filter(p => p.hasAccess).map(p => p.featureKey);
-        setPermissions(keys);
-      })
-      .catch(() => { /* silent — permissions stay empty, all nav visible */ });
-  }, [isAuthenticated, staffId, setPermissions]);
+  const { session } = useAuth();
+  const loginInstructions = session?.loginInstructions ?? [];
 
   // ── Listen for 403 permission-denied events from axios interceptor ────
   useEffect(() => {
@@ -58,6 +48,8 @@ export default function DashboardLayout() {
 
   return (
     <div className="flex h-[100dvh] w-full bg-[#F8FAFC] font-sans text-slate-900 overflow-hidden relative">
+
+      <LoginInstructionPopups notes={loginInstructions} />
 
       {/* ── SIDEBAR ── */}
       <aside className={`
